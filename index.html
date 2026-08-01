@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#171426" />
+    <meta name="description" content="Petals at Dusk — a cinematic pixel-art story about a small dog and one special flower." />
+    <title>Petals at Dusk</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="masthead">
+        <a class="wordmark" href="#" aria-label="Petals at Dusk home">
+          <span class="wordmark__flower" aria-hidden="true">✦</span>
+          <span><b>Petals at Dusk</b><small>an interactive short story</small></span>
+        </a>
+        <div class="masthead__actions">
+          <span id="chapter-label">PROLOGUE · 6:42 PM</span>
+          <button id="sound-button" class="icon-button" type="button" aria-label="Mute sound" title="Mute sound">♪</button>
+        </div>
+      </header>
+
+      <section id="game-frame" class="game-frame is-loading" aria-label="Petals at Dusk game">
+        <canvas id="game" width="960" height="540" aria-label="A richly detailed flower market at dusk"></canvas>
+        <div class="cinematic-bars" aria-hidden="true"></div>
+        <div class="vignette" aria-hidden="true"></div>
+        <div class="grain" aria-hidden="true"></div>
+
+        <div id="loading-screen" class="loading-screen">
+          <span class="loading-bloom" aria-hidden="true">✦</span>
+          <p>Opening the evening road…</p>
+          <span class="loading-line"><i></i></span>
+        </div>
+
+        <section id="title-screen" class="screen title-screen" hidden>
+          <div class="title-panel">
+            <p class="eyebrow">Chapter one</p>
+            <h1>Petals<br /><em>at Dusk</em></h1>
+            <div class="title-rule"><i></i><span>✦</span><i></i></div>
+            <p class="title-copy">The flower market closes at sunset.<br />One small dog has an errand before blue hour.</p>
+            <button id="start-button" class="primary-button" type="button"><span>Begin the walk</span><b>→</b></button>
+          </div>
+          <p class="title-footnote">An original browser-game prototype · best experienced with sound</p>
+        </section>
+
+        <section id="select-screen" class="screen select-screen" hidden>
+          <div class="select-heading">
+            <p class="eyebrow">Choose your companion</p>
+            <h2>Who came looking for a flower?</h2>
+            <p>Your choice changes the hero, not the heart of the story.</p>
+          </div>
+          <div class="character-grid">
+            <button class="character-card" type="button" data-dog="maltipoo">
+              <span class="card-number">01</span>
+              <canvas class="select-dog-preview" width="240" height="160" data-dog-preview="maltipoo" aria-hidden="true"></canvas>
+              <span class="character-copy"><strong>Momo</strong><small>Brown Maltipoo</small></span>
+              <span class="temperament">Curious · warm · easily distracted</span>
+              <span class="choose-label">Choose Momo <b>→</b></span>
+            </button>
+            <button class="character-card" type="button" data-dog="maltese">
+              <span class="card-number">02</span>
+              <canvas class="select-dog-preview" width="240" height="160" data-dog-preview="maltese" aria-hidden="true"></canvas>
+              <span class="character-copy"><strong>Mallow</strong><small>White Maltese</small></span>
+              <span class="temperament">Gentle · bright · quietly determined</span>
+              <span class="choose-label">Choose Mallow <b>→</b></span>
+            </button>
+          </div>
+        </section>
+
+        <div id="hud" class="hud" hidden>
+          <div class="quest-card">
+            <span class="quest-card__label">Tonight's errand</span>
+            <strong id="quest-text">Choose one flower to take home</strong>
+          </div>
+          <div class="bloom-counter" aria-label="Flowers remaining">
+            <div id="bloom-pips" class="bloom-pips"></div>
+            <span id="flower-count">6 blooms remain</span>
+          </div>
+        </div>
+
+        <div id="location-card" class="location-card" hidden>
+          <span>THE OLD ARCADE</span>
+          <strong>The Flower Market</strong>
+          <small>Open until the last light leaves</small>
+        </div>
+
+        <div id="tutorial" class="tutorial" hidden>
+          <span class="tutorial__icon">✦</span>
+          <span><b>Follow the road to the market</b><small>Move with Left / Right or A / D · Hold Shift to sprint</small></span>
+        </div>
+
+        <button id="interact-prompt" class="interact-prompt" type="button" hidden>
+          <span id="interact-key" class="interact-key">E</span>
+          <span><small id="interact-kicker">A flower catches your eye</small><b id="interact-label">Inspect the Coral Peony</b></span>
+        </button>
+
+        <section id="dialogue" class="dialogue" hidden aria-live="polite" aria-label="Dialogue">
+          <div class="dialogue__portrait-wrap">
+            <canvas id="portrait-canvas" width="112" height="112" aria-hidden="true"></canvas>
+            <span id="portrait-mark" class="portrait-mark">✦</span>
+          </div>
+          <div class="dialogue__body">
+            <div class="dialogue__heading">
+              <span id="speaker">Narrator</span>
+              <i></i>
+            </div>
+            <p id="dialogue-text"></p>
+            <div id="dialogue-choices" class="dialogue-choices" hidden></div>
+            <button id="continue-button" class="continue-button" type="button">Continue <kbd>Space</kbd> <b>▾</b></button>
+          </div>
+        </section>
+
+        <section id="ending-screen" class="screen ending-screen" hidden>
+          <div class="ending-glow" aria-hidden="true"></div>
+          <div class="ending-flower" aria-hidden="true"><span id="ending-flower-symbol">✿</span></div>
+          <p class="eyebrow">The last flower</p>
+          <h2 id="ending-title">The flower made it home.</h2>
+          <p id="ending-copy"></p>
+          <div class="ending-memory"><span>What the evening kept</span><strong id="ending-memory">A familiar bench</strong></div>
+          <button id="restart-button" class="primary-button" type="button"><span>Begin again</span><b>↻</b></button>
+        </section>
+
+        <div id="touch-controls" class="touch-controls" hidden aria-label="Touch controls">
+          <div class="d-pad">
+            <button type="button" data-key="left" aria-label="Move left">◀</button>
+            <button type="button" data-key="right" aria-label="Move right">▶</button>
+          </div>
+          <div class="touch-actions">
+            <button class="touch-sprint" type="button" data-key="sprint" aria-label="Hold to sprint">RUN</button>
+            <button class="touch-door" type="button" data-key="up" aria-label="Enter or leave">▲</button>
+            <button class="touch-action" type="button" data-key="action" aria-label="Interact">✿</button>
+          </div>
+        </div>
+
+        <div id="fade" class="fade" aria-hidden="true"></div>
+      </section>
+
+      <footer class="game-footer">
+        <p><span class="status-dot"></span><span id="status-text">A quiet story in progress</span></p>
+        <div><span><kbd>A D</kbd> Move</span><span><kbd>Shift</kbd> Sprint</span><span><kbd>↑</kbd> Enter / leave</span><span><kbd>E</kbd> Interact</span><span><kbd>Space</kbd> Continue</span></div>
+      </footer>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
