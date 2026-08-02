@@ -75,7 +75,7 @@ const assetSources = {
   locomotion: "assets/dog-locomotion-v3.png",
   portraits: "assets/portrait-atlas-v2.png",
   visitors: "assets/market-visitors-v1.png",
-  visitorWalk: "assets/market-visitor-walk-v1.png"
+  visitorWalk: "assets/market-visitor-walk-v2.png"
 };
 const assets = {};
 
@@ -110,6 +110,7 @@ let dialogue = null;
 let lastTime = 0;
 let audioMuted = false;
 let audioContext = null;
+let menuIndex = 0;
 
 const flowerData = {
   peony: { name: "Coral Peony", short: "Peony", color: "#ef8c83", symbol: "✿", anchor: [230, 340], stand: 230 },
@@ -364,30 +365,37 @@ Promise.all(Object.entries(assetSources).map(([key, source]) => loadImage(source
     drawSelectionPreviews();
     ui.frame.classList.remove("is-loading");
     ui.loading.style.opacity = "0";
-    setTimeout(() => { ui.loading.hidden = true; ui.title.hidden = false; state = "title"; }, 550);
+    setTimeout(() => {
+      ui.loading.hidden = true; ui.title.hidden = false; state = "title";
+      setMenuSelection(0);
+    }, 550);
   })
   .catch(() => { ui.loading.innerHTML = "<p>The evening could not be opened. Please refresh the page.</p>"; });
 
 document.querySelector("#start-button").addEventListener("click", () => {
   initAudio(); tone(523, 0.08, 0.035);
-  transition(() => { ui.title.hidden = true; ui.select.hidden = false; state = "select"; drawSelectionPreviews(); });
+  transition(() => {
+    ui.title.hidden = true; ui.select.hidden = false; state = "select";
+    drawSelectionPreviews(); setMenuSelection(0);
+  });
 });
-document.querySelectorAll("[data-dog]").forEach((button) => button.addEventListener("click", () => chooseDog(button.dataset.dog)));
+document.querySelectorAll("[data-dog]").forEach((button, index) => {
+  button.addEventListener("click", () => chooseDog(button.dataset.dog));
+  button.addEventListener("focus", () => setMenuSelection(index, false));
+  button.addEventListener("mouseenter", () => setMenuSelection(index, false));
+});
 document.querySelector("#restart-button").addEventListener("click", resetGame);
-ui.continueButton.addEventListener("click", advanceDialogue);
+ui.continueButton.addEventListener("click", performAction);
 ui.prompt.addEventListener("click", () => { if (getActiveDoor()) handleUp(); else interact(); });
 ui.soundButton.addEventListener("click", toggleSound);
 
 window.addEventListener("keydown", (event) => {
+  if (handleMenuKeydown(event)) return;
   const map = { ArrowLeft: "left", a: "left", A: "left", ArrowRight: "right", d: "right", D: "right" };
   if (map[event.key]) { keys[map[event.key]] = true; event.preventDefault(); }
   if (event.key === "Shift") { keys.sprint = true; event.preventDefault(); }
   if (["ArrowUp", "w", "W"].includes(event.key) && !event.repeat) { event.preventDefault(); handleUp(); }
-  if (["e", "E", " "].includes(event.key) && !event.repeat) {
-    event.preventDefault();
-    if (state === "dialogue") advanceDialogue();
-    else if (state === "playing") interact();
-  }
+  if (["e", "E"].includes(event.key) && !event.repeat) { event.preventDefault(); performAction(); }
 });
 window.addEventListener("keyup", (event) => {
   const map = { ArrowLeft: "left", a: "left", A: "left", ArrowRight: "right", d: "right", D: "right" };
@@ -398,7 +406,7 @@ document.querySelectorAll("[data-key]").forEach((button) => {
   const key = button.dataset.key;
   const press = (event) => {
     event.preventDefault();
-    if (key === "action") state === "dialogue" ? advanceDialogue() : interact();
+    if (key === "action") performAction();
     else if (key === "up") handleUp();
     else keys[key] = true;
   };
@@ -406,6 +414,47 @@ document.querySelectorAll("[data-key]").forEach((button) => {
   button.addEventListener("pointerdown", press); button.addEventListener("pointerup", release);
   button.addEventListener("pointercancel", release); button.addEventListener("pointerleave", release);
 });
+
+function performAction() {
+  if (state === "dialogue") advanceDialogue();
+  else if (state === "playing") interact();
+}
+
+function getMenuOptions() {
+  if (state === "title") return [document.querySelector("#start-button")];
+  if (state === "select") return [...document.querySelectorAll("[data-dog]")];
+  if (state === "ending") return [document.querySelector("#restart-button")];
+  return [];
+}
+
+function setMenuSelection(index, focus = true) {
+  const options = getMenuOptions().filter(Boolean);
+  if (!options.length) return;
+  menuIndex = (index + options.length) % options.length;
+  options.forEach((button, optionIndex) => {
+    const selected = optionIndex === menuIndex;
+    button.classList[selected ? "add" : "remove"]("is-menu-selected");
+    button.tabIndex = selected ? 0 : -1;
+  });
+  if (focus) options[menuIndex].focus?.({ preventScroll: true });
+}
+
+function handleMenuKeydown(event) {
+  if (!["title", "select", "ending"].includes(state)) return false;
+  if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
+    event.preventDefault(); setMenuSelection(menuIndex - 1); return true;
+  }
+  if (["ArrowRight", "ArrowDown"].includes(event.key)) {
+    event.preventDefault(); setMenuSelection(menuIndex + 1); return true;
+  }
+  if (["Enter", "e", "E", " "].includes(event.key) && !event.repeat) {
+    event.preventDefault();
+    const options = getMenuOptions().filter(Boolean);
+    options[menuIndex]?.click();
+    return true;
+  }
+  return false;
+}
 
 function loadImage(source) {
   return new Promise((resolve, reject) => {
@@ -454,7 +503,10 @@ function resetGame() {
   ui.touch.hidden = true; ui.touch.classList.remove("is-active");
   ui.frame.classList.remove("is-cinematic");
   updateHUD();
-  transition(() => { ui.select.hidden = false; state = "select"; ui.chapter.textContent = "PROLOGUE · 6:42 PM"; drawSelectionPreviews(); });
+  transition(() => {
+    ui.select.hidden = false; state = "select"; ui.chapter.textContent = "PROLOGUE · 6:42 PM";
+    drawSelectionPreviews(); setMenuSelection(0);
+  });
 }
 
 function resumePlay() {
@@ -766,6 +818,7 @@ function showEnding(flower) {
   ui.endingCopy.textContent = "The flower found its way home. Some plans change; the care behind them does not.";
   ui.endingMemory.textContent = "A familiar bench, both dogs, and one flower";
   ui.ending.hidden = false; ui.chapter.textContent = "EPILOGUE · BLUE HOUR"; scene.darkness = 0.19;
+  setMenuSelection(0);
   tone(523, 0.4, 0.035); setTimeout(() => tone(659, 0.45, 0.028), 240); setTimeout(() => tone(784, 0.7, 0.02), 480);
 }
 
@@ -1179,24 +1232,24 @@ const visitorSpriteRects = {
 
 const visitorWalkFrameRects = {
   tankkeeper: [
-    { x: 99, y: 2, width: 120, height: 230 }, { x: 394, y: 2, width: 120, height: 230 },
-    { x: 676, y: 2, width: 121, height: 230 }, { x: 958, y: 2, width: 118, height: 230 }
+    { x: 84, y: 15, width: 158, height: 230 }, { x: 414, y: 15, width: 137, height: 230 },
+    { x: 686, y: 15, width: 168, height: 230 }, { x: 1004, y: 15, width: 116, height: 230 }
   ],
   poolplayer: [
-    { x: 91, y: 234, width: 174, height: 223 }, { x: 380, y: 234, width: 173, height: 223 },
-    { x: 669, y: 234, width: 175, height: 223 }, { x: 947, y: 234, width: 174, height: 223 }
+    { x: 71, y: 244, width: 205, height: 232 }, { x: 381, y: 244, width: 192, height: 232 },
+    { x: 674, y: 244, width: 197, height: 232 }, { x: 973, y: 244, width: 183, height: 232 }
   ],
   catkeeper: [
-    { x: 101, y: 452, width: 115, height: 231 }, { x: 391, y: 452, width: 117, height: 231 },
-    { x: 678, y: 452, width: 120, height: 231 }, { x: 957, y: 452, width: 112, height: 231 }
+    { x: 81, y: 471, width: 145, height: 240 }, { x: 403, y: 471, width: 137, height: 240 },
+    { x: 690, y: 471, width: 145, height: 240 }, { x: 986, y: 471, width: 116, height: 240 }
   ],
   bellkeeper: [
-    { x: 91, y: 682, width: 135, height: 241 }, { x: 383, y: 682, width: 142, height: 241 },
-    { x: 672, y: 682, width: 140, height: 241 }, { x: 951, y: 682, width: 137, height: 241 }
+    { x: 77, y: 709, width: 160, height: 239 }, { x: 403, y: 709, width: 138, height: 239 },
+    { x: 682, y: 709, width: 162, height: 239 }, { x: 976, y: 709, width: 144, height: 239 }
   ],
   ted: [
-    { x: 77, y: 925, width: 167, height: 269 }, { x: 366, y: 925, width: 164, height: 269 },
-    { x: 647, y: 925, width: 172, height: 269 }, { x: 932, y: 925, width: 165, height: 269 }
+    { x: 56, y: 951, width: 189, height: 254 }, { x: 416, y: 951, width: 150, height: 254 },
+    { x: 653, y: 951, width: 190, height: 254 }, { x: 957, y: 951, width: 167, height: 254 }
   ]
 };
 
@@ -1231,6 +1284,8 @@ function drawVisitorWalkSprite(x, footY, sprite, frame, direction) {
   if (!rect) return;
   const drawHeight = 154;
   const drawWidth = drawHeight * (rect.width / rect.height);
+  const frameIndex = Math.floor(frame) % frames.length;
+  const stepLift = [0, 3, 0, -2][frameIndex];
 
   ctx.save();
   ctx.globalAlpha = 0.28;
@@ -1241,8 +1296,8 @@ function drawVisitorWalkSprite(x, footY, sprite, frame, direction) {
   ctx.restore();
 
   ctx.save();
-  ctx.translate(Math.round(x), Math.round(footY));
-  if (direction === "left") ctx.scale(-1, 1);
+  ctx.translate(Math.round(x), Math.round(footY + stepLift));
+  if (direction === "right") ctx.scale(-1, 1);
   ctx.filter = "saturate(.88) brightness(.9)";
   ctx.drawImage(
     assets.visitorWalk,

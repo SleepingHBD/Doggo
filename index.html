@@ -44,7 +44,7 @@
             <p class="title-copy">The flower market closes at sunset.<br />One small dog has an errand before blue hour.</p>
             <button id="start-button" class="primary-button" type="button"><span>Begin the walk</span><b>→</b></button>
           </div>
-          <p class="title-footnote">An original browser-game prototype · best experienced with sound</p>
+          <p class="title-footnote">Arrow keys to navigate · E to select · best experienced with sound</p>
         </section>
 
         <section id="select-screen" class="screen select-screen" hidden>
@@ -69,6 +69,7 @@
               <span class="choose-label">Choose Mallow <b>→</b></span>
             </button>
           </div>
+          <p class="menu-controls"><kbd>←</kbd><kbd>→</kbd> Choose <span>·</span> <kbd>E</kbd> Confirm</p>
         </section>
 
         <div id="hud" class="hud" hidden>
@@ -110,7 +111,7 @@
             </div>
             <p id="dialogue-text"></p>
             <div id="dialogue-choices" class="dialogue-choices" hidden></div>
-            <button id="continue-button" class="continue-button" type="button">Continue <kbd>Space</kbd> <b>▾</b></button>
+            <button id="continue-button" class="continue-button" type="button">Continue <kbd>E</kbd> <b>▾</b></button>
           </div>
         </section>
 
@@ -132,7 +133,7 @@
           <div class="touch-actions">
             <button class="touch-sprint" type="button" data-key="sprint" aria-label="Hold to sprint">RUN</button>
             <button class="touch-door" type="button" data-key="up" aria-label="Enter or leave">▲</button>
-            <button class="touch-action" type="button" data-key="action" aria-label="Interact">✿</button>
+            <button class="touch-action" type="button" data-key="action" aria-label="Interact or continue">✿</button>
           </div>
         </div>
 
@@ -141,7 +142,7 @@
 
       <footer class="game-footer">
         <p><span class="status-dot"></span><span id="status-text">A quiet story in progress</span></p>
-        <div><span><kbd>A D</kbd> Move</span><span><kbd>Shift</kbd> Sprint</span><span><kbd>↑</kbd> Enter / leave</span><span><kbd>E</kbd> Interact</span><span><kbd>Space</kbd> Continue</span></div>
+        <div><span><kbd>A D</kbd> Move</span><span><kbd>Shift</kbd> Sprint</span><span><kbd>↑</kbd> Enter / leave</span><span><kbd>E</kbd> Interact / continue</span></div>
       </footer>
     </main>
     <script src="game.js"></script>

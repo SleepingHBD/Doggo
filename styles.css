@@ -75,7 +75,7 @@ button { color: inherit; }
 .title-footnote { position:absolute; bottom:4.4%; left:0; right:0; color:rgba(255,245,223,.54); font-size:7px; letter-spacing:.14em; text-transform:uppercase; }
 
 .primary-button { display:inline-flex; align-items:center; gap:26px; padding:0 0 7px; border:0; border-bottom:1px solid rgba(255,245,223,.65); color:var(--paper); background:none; font-size:clamp(9px,1vw,12px); letter-spacing:.08em; text-transform:uppercase; cursor:pointer; transition:color .2s, gap .2s; }
-.primary-button b { color:var(--gold); font-size:17px; }.primary-button:hover{color:var(--gold);gap:34px}.primary-button:focus-visible{outline:2px solid var(--gold);outline-offset:8px}
+.primary-button b { color:var(--gold); font-size:17px; }.primary-button:hover,.primary-button.is-menu-selected{color:var(--gold);gap:34px}.primary-button:focus-visible,.primary-button.is-menu-selected{outline:2px solid var(--gold);outline-offset:8px}
 
 .select-screen { justify-content:flex-start; padding:5% 8%; background:rgba(19,14,27,.88); backdrop-filter:blur(4px); }
 .select-heading h2 { margin:0; font:600 clamp(29px,4vw,56px)/1 var(--serif); letter-spacing:-.045em; }
@@ -83,12 +83,13 @@ button { color: inherit; }
 .character-grid { width:min(840px,84%); display:grid; grid-template-columns:1fr 1fr; gap:clamp(12px,2.5vw,30px); margin-top:4%; }
 .character-card { position:relative; min-height:clamp(190px,28vw,330px); display:grid; grid-template-columns:45% 1fr; grid-template-rows:1fr auto auto; align-items:center; overflow:hidden; padding:8% 7% 7%; border:1px solid rgba(255,245,223,.24); color:var(--paper); background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.015)); text-align:left; cursor:pointer; transition:transform .25s,border-color .25s,background .25s; }
 .character-card::after { content:""; position:absolute; inset:auto 0 0; height:3px; background:var(--gold); transform:scaleX(0); transform-origin:left; transition:transform .3s; }
-.character-card:hover { transform:translateY(-5px); border-color:rgba(240,198,109,.72); background:linear-gradient(145deg,rgba(214,111,114,.15),rgba(255,255,255,.03)); }.character-card:hover::after{transform:scaleX(1)}
+.character-card:hover,.character-card:focus-visible,.character-card.is-menu-selected { transform:translateY(-5px); border-color:rgba(240,198,109,.72); background:linear-gradient(145deg,rgba(214,111,114,.15),rgba(255,255,255,.03)); outline:0; }.character-card:hover::after,.character-card:focus-visible::after,.character-card.is-menu-selected::after{transform:scaleX(1)}
 .card-number { position:absolute; top:8%; right:7%; color:#82768a; font-size:9px; }
 .select-dog-preview { width:clamp(112px,16vw,220px); height:auto; align-self:center; filter:drop-shadow(0 12px 12px rgba(0,0,0,.3)); image-rendering:pixelated; }
 .character-copy { display:flex; flex-direction:column; align-self:end; }.character-copy strong{font:600 clamp(25px,3.5vw,46px)/1 var(--serif);letter-spacing:-.05em}.character-copy small{margin-top:5px;color:var(--gold);font-size:clamp(7px,.9vw,10px);text-transform:uppercase;letter-spacing:.12em}
 .temperament { grid-column:1/-1; padding:12px 0; border-top:1px solid rgba(255,255,255,.11); color:#b4a7b2; font-size:clamp(6px,.8vw,9px); text-transform:uppercase; letter-spacing:.1em; }
 .choose-label { grid-column:1/-1; display:flex; justify-content:space-between; color:#e7d9d1; font-size:clamp(7px,.9vw,10px); }.choose-label b{color:var(--gold)}
+.menu-controls{margin:14px 0 0;color:#9f92a2;font-size:7px;letter-spacing:.11em;text-transform:uppercase}.menu-controls kbd{margin:0 2px;color:var(--gold)}.menu-controls span{margin:0 6px;color:#675d70}
 
 .hud { position:absolute; z-index:5; inset:4.8% 3.2% auto; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; }
 .quest-card { display:flex; flex-direction:column; padding-left:11px; border-left:2px solid var(--gold); text-shadow:0 2px 6px rgba(0,0,0,.8); }.quest-card__label{color:var(--gold);font-size:clamp(6px,.7vw,9px);letter-spacing:.18em;text-transform:uppercase}.quest-card strong{margin-top:4px;font:600 clamp(11px,1.5vw,17px)/1.1 var(--serif)}

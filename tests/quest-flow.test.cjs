@@ -6,9 +6,11 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const gradient = { addColorStop() {} };
+const scaleCalls = [];
 const drawingContext = new Proxy({}, {
   get(target, property) {
     if (property === "createLinearGradient" || property === "createRadialGradient") return () => gradient;
+    if (property === "scale") return (x, y) => scaleCalls.push([x, y]);
     if (!(property in target)) target[property] = () => {};
     return target[property];
   },
@@ -36,12 +38,15 @@ class FakeImage {
 }
 
 const elements = new Map();
+const dogButtons = [new FakeElement(), new FakeElement()];
+dogButtons[0].dataset.dog = "maltipoo";
+dogButtons[1].dataset.dog = "maltese";
 const document = {
   querySelector(selector) {
     if (!elements.has(selector)) elements.set(selector, new FakeElement());
     return elements.get(selector);
   },
-  querySelectorAll() { return []; },
+  querySelectorAll(selector) { return selector === "[data-dog]" ? dogButtons : []; },
   createElement() { return new FakeElement(); }
 };
 
@@ -68,6 +73,16 @@ const sceneSummary = vm.runInContext(`Object.fromEntries(Object.entries(SCENES).
   doors: (config.doors || []).map((door) => ({ target: door.target, quest: door.quest || null }))
 }]))`, sandbox);
 const assetSummary = vm.runInContext(`({ ...assetSources })`, sandbox);
+const markup = fs.readFileSync(path.join(process.cwd(), "index.html"), "utf8");
+
+assert.match(markup, /Continue\s*<kbd>E<\/kbd>/, "dialogue should advertise the same E action used for interaction");
+assert.match(markup, /<kbd>E<\/kbd> Interact \/ continue/, "the control legend should expose one shared action key");
+
+vm.runInContext(`state = "select"; menuIndex = 0;`, sandbox);
+vm.runInContext(`handleMenuKeydown({ key: "ArrowRight", repeat: false, preventDefault() {} });`, sandbox);
+assert.equal(vm.runInContext("menuIndex", sandbox), 1, "right arrow should select the next menu option");
+vm.runInContext(`handleMenuKeydown({ key: "ArrowLeft", repeat: false, preventDefault() {} });`, sandbox);
+assert.equal(vm.runInContext("menuIndex", sandbox), 0, "left arrow should select the previous menu option");
 
 assert.equal(questSummary.length, 5, "the game should have five obstacle quests");
 for (const quest of questSummary) {
@@ -115,6 +130,12 @@ assert.doesNotThrow(() => vm.runInContext(`
   drawWorldIndicator(400, 320, "E", 100, true);
   drawWorldIndicator(500, 320, "↑", 200, false);
 `, sandbox), "dog and visitor locomotion cycles should render from their atlases");
+scaleCalls.length = 0;
+vm.runInContext(`drawVisitorWalkSprite(400, SCENES.market.groundY, "tankkeeper", 0, "right");`, sandbox);
+assert.deepEqual(scaleCalls.at(-1), [-1, 1], "a right-moving visitor should mirror the left-facing source art");
+scaleCalls.length = 0;
+vm.runInContext(`drawVisitorWalkSprite(400, SCENES.market.groundY, "tankkeeper", 0, "left");`, sandbox);
+assert.equal(scaleCalls.length, 0, "a left-moving visitor should keep the source art orientation");
 vm.runInContext(`keys.right = false; keys.sprint = false; update(0.1, 300);`, sandbox);
 assert.equal(vm.runInContext("player.pose", sandbox), "idle", "releasing movement should stop the sprint pose");
 
