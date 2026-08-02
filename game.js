@@ -71,7 +71,7 @@ const assetSources = {
   aquariumInside: "assets/interior-aquarium-benchmark-v1.png",
   poolInside: "assets/interior-pool-benchmark-v1.png",
   catInside: "assets/interior-cat-cafe-benchmark-v2.png",
-  bellHome: "assets/interior-bell-home-benchmark-v1.png",
+  bellHome: "assets/interior-bell-home-benchmark-v2.png",
   rooftop: "assets/rooftop-benchmark-v1.png",
   dogMaltipoo: "assets/dog-maltipoo-authored-v2.png",
   dogMaltese: "assets/dog-maltese-authored-v2.png",
@@ -144,76 +144,70 @@ const flowerData = {
   sunflower: { name: "Little Sunflower", short: "Sunflower", color: "#f2c24e", symbol: "☀", anchor: [855, 300], stand: 855 },
   daisy: { name: "Moon Daisy", short: "Daisy", color: "#fff1db", symbol: "✽", anchor: [985, 320], stand: 985 }
 };
-const flowers = Object.entries(flowerData).map(([id, data]) => ({ id, ...data, active: true }));
+const flowers = Object.entries(flowerData).map(([id, data]) => ({ id, ...data, active: true, sale: null }));
 
 const memorySpots = [
   {
     id: "bench", scene: "bench", x: 825, kind: "bench", label: "Pause by the familiar bench", seen: false,
     lines: () => [
-      line("Narrator", "A familiar bench waits beneath the streetlamp.", "narrator"),
-      line("Narrator", "Some evenings ended here slowly: one more story, then another, until an hour became two.", "narrator"),
-      line(player.name, "This bench feels important.", "player")
+      line("Narrator", "The middle slat dips a little. One end is still dry from the rain.", "narrator"),
+      dogLine("We'll stop on the way back.", "We can stop on the way back.")
     ]
   },
   {
     id: "aquarium", scene: "aquarium", x: 200, kind: "aquarium", label: "Look for the shark", seen: false,
     lines: () => [
-      line("Narrator", "The aquarium glass turns the whole pavement blue. Colourful fish flicker between the coral.", "narrator"),
-      line(player.name, "There you are.", "player"),
-      line("Narrator", "Finding it still feels like winning something.", "narrator")
+      line("Narrator", "Six bright fish crowd the glass. A shark crosses behind them and disappears into the coral.", "narrator"),
+      dogLine("Too slow. Again.", "Next lap.")
     ]
   },
   {
     id: "football", scene: "aquarium", x: 930, kind: "football", label: "Pause by the school pitch", seen: false,
     lines: () => [
-      line("Narrator", "A scuffed football rests beside a school fence.", "narrator"),
-      line("Narrator", "The worn grass remembers someone who once ran this field often.", "narrator"),
-      line(player.name, "The ball has been waiting.", "player")
+      line("Narrator", "A scuffed football sits halfway between the penalty spot and the goal.", "narrator"),
+      dogLine("Close enough.", "It could use a kick.")
     ]
   },
   {
     id: "pool", scene: "dateNight", x: 340, kind: "pool", label: "Look into the pool hall", seen: false,
     lines: () => [
-      line("Narrator", "A pool cue leans in a cafe window. Tiny scuffs mark the ceiling above it.", "narrator"),
-      line("Narrator", "Some memories leave very small marks in very high places.", "narrator"),
-      line(player.name, "That is a high place for a cue.", "player")
+      line("Narrator", "Inside the pool hall, a cue points directly at a cluster of white marks on the ceiling.", "narrator"),
+      dogLine("Ambitious.", "That explains the ceiling.")
     ]
   },
   {
     id: "gaming", scene: "dateNight", x: 730, kind: "gaming", label: "Look into the gaming cafe", seen: false,
     lines: () => [
-      line("Narrator", "Two screens glow behind the glass, each showing half of the same impossible world.", "narrator"),
-      line(player.name, "They fit.", "player")
+      line("Narrator", "Two controllers sit below a paused split-screen. Neither half makes much sense alone.", "narrator"),
+      dogLine("Both controllers, then.", "It needs both.")
     ]
   },
   {
     id: "catcafe", scene: "catStories", x: 220, kind: "catcafe", label: "Watch the cafe cats", seen: false,
     lines: () => [
-      line("Narrator", "Every cat in the cafe is still completely occupied with dinner.", "narrator"),
-      line(player.name, "No one looks ready to play.", "player")
+      line("Narrator", "Every toy is untouched. Every food bowl has an audience.", "narrator"),
+      dogLine("Correct priorities.", "They look busy.")
     ]
   },
   {
     id: "chess", scene: "catStories", x: 450, kind: "chess", label: "Look over the chessboard", seen: false,
     lines: () => [
-      line("Narrator", "An untouched chessboard waits on a cafe table.", "narrator"),
-      line("Narrator", "A passing comment has somehow left a whole board behind.", "narrator"),
-      line(player.name, "The next move can wait.", "player")
+      line("Narrator", "A chessboard is set for a game. No one has committed to the first move.", "narrator"),
+      dogLine("Too many pieces.", "Maybe one move.")
     ]
   },
   {
     id: "stories", scene: "catStories", x: 670, kind: "stories", label: "Inspect the story window", seen: false,
     lines: () => [
-      line("Narrator", "A wrapped copy of The Hunger Games sits beside a sun-faded straw-hat adventure poster.", "narrator"),
-      line("Narrator", "One story was wrapped for a birthday. The other has clearly travelled here many times.", "narrator"),
-      line(player.name, "Both look carefully chosen.", "player")
+      line("Narrator", "A wrapped copy of The Hunger Games rests below a faded poster of a straw-hatted pirate.", "narrator"),
+      dogLine("Different kinds of trouble.", "Both look dangerous.")
     ]
   },
   {
     id: "agency", scene: "catStories", x: 905, kind: "agency", label: "Look into the creative studio", seen: false,
     lines: () => [
-      line("Narrator", "Layered campaign posters cover the wall: sharp headlines, careful colours, three rounds of revisions.", "narrator"),
-      line(player.name, "A lot of thinking lives on that wall.", "player")
+      line("Narrator", "Three versions of the same advert cover the wall. A fourth is pinned above the bin.", "narrator"),
+      dogLine("Still working.", "One more version.")
     ]
   }
 ];
@@ -222,164 +216,184 @@ const questDefinitions = [
   {
     id: "aquarium", exterior: "aquarium", interior: "aquariumInside", place: "aquarium", title: "THE MISSING SHARK",
     issuer: { name: "Tank Keeper", portrait: "tankkeeper", sprite: "tankkeeper" },
+    sellout: { tag: "SOLD", accent: "#7194a8", tilt: -0.045 },
     trigger: (flower) => [
-      line("Narrator", `Just as one paw reaches for the ${flower.name}, a keeper in a blue jacket hurries into the aisle.`, "narrator"),
-      line("Tank Keeper", "Excuse me—are you good at finding things? One shark has slipped out of our evening headcount, and the reef display cannot open without it.", "tankkeeper"),
-      line(player.name, "The blue windows.", "player")
+      line("Narrator", `A blue-jacketed keeper steps between one paw and the ${flower.name}, counting on a clipboard.`, "narrator"),
+      line("Tank Keeper", "Quick question: how many sharks can you see? If the answer is zero, we're having the same problem. The reef opens in ten minutes.", "tankkeeper"),
+      dogLine("Largest tank?", "Start with the big tank?")
     ],
     arrival: () => [
-      line("Tank Keeper", "Start with the colourful fish. They noticed something before I did.", "tankkeeper"),
-      line("Narrator", "Beyond the glass, every small fish turns at once.", "narrator")
+      line("Tank Keeper", "Current count: forty-three small fish, six rays, zero cooperative sharks. Start with the colourful school.", "tankkeeper"),
+      dogLine("They're pointing.", "They want us to follow.")
     ],
     steps: [
       { x: 260, kicker: "The small reef tank", label: "Watch the colourful fish", objective: "Follow the colourful fish", lines: () => [
-        line("Narrator", "The school of colour circles once, then points itself toward the tunnel.", "narrator"),
-        line(player.name, "They keep looking right.", "player")
+        line("Narrator", "Red, yellow and blue fish dart into the same tunnel, then double back.", "narrator"),
+        dogLine("Not subtle.", "That way.")
       ] },
       { x: 555, kicker: "A trail of bubbles", label: "Inspect the coral tunnel", objective: "Trace the bubbles through the coral", lines: () => [
-        line("Narrator", "A patient line of bubbles slips behind the coral and continues toward the largest tank.", "narrator")
+        line("Narrator", "Three bubbles rise behind the coral. Then three more. Something large is circling back.", "narrator")
       ] },
       { x: 900, kicker: "The deep blue tank", label: "Find the hidden shark", objective: "Check the shadow in the deep tank", lines: () => [
-        line("Narrator", "A fin separates itself from the blue. The missing shark was cruising along the darkest pane.", "narrator"),
-        line("Tank Keeper", "There you are. The reef can open after all.", "tankkeeper")
+        line("Narrator", "A dark fin crosses the glass, followed by the rest of the shark.", "narrator"),
+        line("Tank Keeper", "Forty-three fish, six rays, one shark. Excellent.", "tankkeeper")
       ] }
     ],
-    solved: () => [line("Tank Keeper", "I will finish the count and meet you back beside the flowers.", "tankkeeper")],
+    solved: () => [line("Tank Keeper", "Count fixed. I owe you one. Meet you back at the market.", "tankkeeper")],
     returned: (flower) => [
-      line("Tank Keeper", "There you are. The reef is open, and I came back for its centrepiece.", "tankkeeper"),
-      line("Narrator", `The ${flower.short} now sits at the centre of the reopened reef display.`, "narrator")
+      line("Tank Keeper", "Shark accounted for. Reef open. I can finally stop counting everything in this aisle.", "tankkeeper"),
+      line("The Florist", `You just missed the ${flower.short}. The last stem left with a family in yellow raincoats.`, "florist"),
+      line("Tank Keeper", "My shark kept better time than we did.", "tankkeeper"),
+      dogLine("Next flower.", "We'll try another.")
     ]
   },
   {
     id: "pool", exterior: "dateNight", interior: "poolInside", place: "pool hall", title: "ONE CLEAN SHOT",
     issuer: { name: "Pool Player", portrait: "poolplayer", sprite: "poolplayer" },
+    sellout: { tag: "PAID", accent: "#a66e5b", tilt: 0.035 },
     trigger: (flower) => [
-      line("Narrator", `A pool player arrives as the ${flower.name} is lifted from its bucket, cue held carefully toward the floor.`, "narrator"),
-      line("Pool Player", "One closing-night frame is still waiting. After a few ambitious practice swings, nobody trusts the ceiling—or the lamp.", "poolplayer"),
-      line(player.name, "The lamp hangs low.", "player")
+      line("Narrator", `A pool player approaches the ${flower.name} with his cue held unusually close to the floor.`, "narrator"),
+      line("Pool Player", "Good news: I can make the last shot. Bad news: the ceiling has reviewed my practice swings.", "poolplayer"),
+      dogLine("And the lamp?", "The lamp too?"),
+      line("Pool Player", "The lamp has retained counsel.", "poolplayer")
     ],
     arrival: () => [
-      line("Pool Player", "One shot left. First, I would like the room to survive it.", "poolplayer"),
-      line("Narrator", "A cue waits beneath a constellation of tiny ceiling scuffs.", "narrator")
+      line("Pool Player", "House rule for tonight: cue below shoulder height. This rule is mostly about me.", "poolplayer"),
+      line("Narrator", "Three pale dents sit directly above the cue rack.", "narrator")
     ],
     steps: [
       { x: 370, kicker: "Marks above the cue rack", label: "Inspect the longest cue", objective: "Check the longest cue beneath the ceiling marks", lines: () => [
-        line("Narrator", "The highest marks begin exactly where the longest cue is stored.", "narrator"),
-        line(player.name, "Too tall.", "player")
+        line("Narrator", "The longest cue lines up perfectly with the highest dent.", "narrator"),
+        dogLine("Evidence.", "That matches.")
       ] },
       { x: 555, kicker: "The hanging table lamp", label: "Lower the lamp guard", objective: "Secure the hanging lamp", lines: () => [
-        line("Narrator", "The brass guard clicks into place. The light stops trembling.", "narrator")
+        line("Narrator", "The brass guard locks around the lamp with a solid click.", "narrator")
       ] },
       { x: 715, kicker: "The final frame", label: "Set up the last shot", objective: "Line up the final shot", lines: () => [
-        line("Narrator", "Four paws make a steady bridge. The cue stays low; the ball rolls cleanly into the corner.", "narrator"),
-        line("Pool Player", "Table safe. Ceiling safe. We have a winner.", "poolplayer")
+        line("Narrator", "Four paws make a low bridge. The cue stays level; the ball drops into the corner pocket.", "narrator"),
+        line("Pool Player", "Pocketed. Nothing overhead has filed a complaint.", "poolplayer")
       ] }
     ],
-    solved: () => [line("Pool Player", "I promised the winner something bright. I will meet you back at the market.", "poolplayer")],
+    solved: () => [line("Pool Player", "Let's get back before anything else files a complaint.", "poolplayer")],
     returned: (flower) => [
-      line("Pool Player", "Table safe. Ceiling safe. I think that earns the final frame a proper prize.", "poolplayer"),
-      line("Narrator", `He carries the ${flower.short} away like a very small trophy.`, "narrator")
+      line("Pool Player", "Ceiling intact. Lamp intact. Confidence completely restored.", "poolplayer"),
+      line("The Florist", `The last ${flower.short} was paid for while you were gone. Pickup is at closing.`, "florist"),
+      line("Pool Player", "I feel partly responsible for the timing.", "poolplayer"),
+      dogLine("You should.", "Only partly.")
     ]
   },
   {
     id: "cats", exterior: "catStories", interior: "catInside", place: "cat cafe", title: "DINNER FIRST",
     issuer: { name: "Cafe Keeper", portrait: "catkeeper", sprite: "catkeeper" },
+    sellout: { tag: "COLLECTED", accent: "#bd7a70", tilt: -0.025 },
     trigger: (flower) => [
-      line("Narrator", `A cafe keeper reaches the ${flower.name} at the exact same moment, a delivery card held between two fingers.`, "narrator"),
-      line("Cafe Keeper", "I was meant to collect this, but every cat in the cafe has formed a very serious dinner blockade around the counter.", "catkeeper"),
-      line(player.name, "Dinner first.", "player")
+      line("Narrator", `A cafe keeper stops beside the ${flower.name}, holding a delivery card covered in paw prints.`, "narrator"),
+      line("Cafe Keeper", "You look good at getting under tables. Mine is currently three cats and a bowl dispute.", "catkeeper"),
+      dogLine("Who's winning?", "Do they know?"),
+      line("Cafe Keeper", "The cats. They count as one team.", "catkeeper")
     ],
     arrival: () => [
-      line("Cafe Keeper", "They were meant to greet the guests. They have unionised around the food bowls.", "catkeeper"),
-      line("Narrator", "Several tails block the narrow path to the delivery bell.", "narrator")
+      line("Cafe Keeper", "Welcome. Tonight's special is apparently 'do not touch my bowl.'", "catkeeper"),
+      line("Narrator", "Three tails block the route to the delivery bell.", "narrator")
     ],
     steps: [
       { x: 325, kicker: "A crowded feeding corner", label: "Count the dinner bowls", objective: "Count the bowls at the feeding corner", lines: () => [
-        line("Narrator", "Three cats. Three bowls. One bowl is simply facing the wrong way.", "narrator"),
-        line(player.name, "Three and three.", "player")
+        line("Narrator", "Three cats. Three bowls. One cat has claimed two opinions.", "narrator"),
+        dogLine("Complicated.", "One at a time.")
       ] },
       { x: 620, kicker: "The cafe counter", label: "Arrange the bowls in a row", objective: "Make a clear dinner row", lines: () => [
-        line("Narrator", "The bowls slide into a neat row. The cats follow with absolute seriousness.", "narrator")
+        line("Narrator", "The bowls slide into a neat row. All three cats move with them.", "narrator"),
+        line("Cafe Keeper", "Efficient. Terrifying, but efficient.", "catkeeper")
       ] },
       { x: 965, kicker: "A little brass bell", label: "Ring the delivery bell", objective: "Ring the bell by the cat tree", lines: () => [
-        line("Narrator", "The bell rings once. The counter is clear for almost three whole seconds.", "narrator"),
-        line("Cafe Keeper", "That is more than enough. Delivery rescued.", "catkeeper")
+        line("Narrator", "The bell rings. The counter stays clear for three full seconds.", "narrator"),
+        line("Cafe Keeper", "That's our opening. We train for moments like this.", "catkeeper")
       ] }
     ],
-    solved: () => [line("Cafe Keeper", "I will run to the market while they are still chewing.", "catkeeper")],
+    solved: () => [line("Cafe Keeper", "I'm following you out while they're still chewing. If anyone asks, they approved my break.", "catkeeper")],
     returned: (flower) => [
-      line("Cafe Keeper", "Perfect timing. The counter is clear again—mostly.", "catkeeper"),
-      line("Narrator", `One satisfied cat is asleep on the ${flower.short}'s paper sleeve. The reservation appears final.`, "narrator")
+      line("Cafe Keeper", "Made it. Nobody followed me. I checked twice.", "catkeeper"),
+      line("Narrator", `A customer passes the doorway carrying the last ${flower.short}.`, "narrator"),
+      line("The Florist", "That was the final bunch.", "florist"),
+      line("Cafe Keeper", "Fast shopper. Respect.", "catkeeper"),
+      dogLine("Next bucket.", "Let's keep looking.")
     ]
   },
   {
     id: "bell", exterior: "bench", interior: "bellHome", place: "Bell's home", title: "A QUIET INTRODUCTION",
     issuer: { name: "Bell's Neighbour", portrait: "bellkeeper", sprite: "bellkeeper" },
+    sellout: { tag: "DELIVERY", accent: "#856b91", tilt: 0.04 },
     trigger: (flower) => [
-      line("Narrator", `A neighbour in a plum raincoat pauses beside the ${flower.name}, holding a parcel tied with silver ribbon.`, "narrator"),
-      line("Bell's Neighbour", "This is meant for Bell, but the doorstep belongs to her until she decides otherwise. A calm introduction might help.", "bellkeeper"),
-      line(player.name, "Bell.", "player")
+      line("Narrator", `A neighbour in a plum raincoat stops beside the ${flower.name} with a silver-ribboned parcel.`, "narrator"),
+      line("Bell's Neighbour", "This is for Bell. Bell has not approved visitors, deliveries, or Tuesdays. Could you help with the first one?", "bellkeeper"),
+      dogLine("From here?", "Should I wait here?"),
+      line("Bell's Neighbour", "From exactly there.", "bellkeeper")
     ],
     arrival: () => [
-      line("Narrator", "A cloud-soft Siberian watches from the chair, close enough to see and far enough to choose.", "narrator"),
+      line("Narrator", "Bell watches from the armchair. Ears forward. Tail still.", "narrator"),
       line("Bell", "Mrrp.", "bell")
     ],
     steps: [
       { x: 210, kicker: "The entry mat", label: "Wait on the mat", objective: "Give Bell some space", lines: () => [
-        line("Narrator", "Nothing is rushed. Bell's tail makes one thoughtful sweep.", "narrator"),
-        line(player.name, "Mm.", "player")
+        line("Narrator", `${player.name} sits on the mat. Bell blinks once.`, "narrator"),
+        dogLine("No rush.", "I'll wait.")
       ] },
       { x: 555, kicker: "A basket of cat toys", label: "Bring the cloth mouse closer", objective: "Find Bell's cloth mouse", lines: () => [
-        line("Narrator", "A well-loved cloth mouse is placed halfway between visitor and chair.", "narrator")
+        line("Narrator", "The cloth mouse stops halfway to the chair. Bell looks at the toy, then the dog, then the toy.", "narrator")
       ] },
       { x: 900, kicker: "Bell's armchair", label: "Sit quietly with Bell", objective: "Let Bell choose the distance", lines: () => [
-        line("Narrator", "Bell steps down, inspects one unfamiliar nose, then settles beside it.", "narrator"),
+        line("Narrator", "Bell steps down, sniffs one unfamiliar nose, and sits beside it.", "narrator"),
         line("Bell", "Prrrp.", "bell")
       ] }
     ],
     solved: () => [
-      line("Narrator", "The silver delivery ribbon is accepted without further objection.", "narrator"),
-      line(player.name, "That should do.", "player")
+      line("Bell's Neighbour", "That sound means yes. Or move six centimetres left. Either way, progress.", "bellkeeper"),
+      dogLine("I'll take yes.", "That's enough.")
     ],
     returned: (flower) => [
-      line("Bell's Neighbour", "That patient little pause did it. Bell's parcel can finally go home.", "bellkeeper"),
-      line("Narrator", `The ${flower.short} went with the silver ribbon. A careful introduction has claimed another bloom.`, "narrator")
+      line("Bell's Neighbour", "Bell accepted the parcel, the ribbon, and half the box. I was allowed to keep the receipt.", "bellkeeper"),
+      line("The Florist", `A delivery rider collected the last ${flower.short} five minutes ago.`, "florist"),
+      line("Bell's Neighbour", "Bell would respect that schedule.", "bellkeeper"),
+      dogLine("Another one, then.", "We still have time.")
     ]
   },
   {
     id: "leap", exterior: "entrance", interior: "rooftop", place: "market rooftop", title: "THE ROOFTOP GAP",
     issuer: { name: "Ted", portrait: "ted", sprite: "ted" },
+    sellout: { tag: "SOLD OUT", accent: "#b5915d", tilt: -0.035 },
     trigger: (flower) => [
-      line("Narrator", `Five tiny name cards tumble from beneath the ${flower.name}: Ted, Marshall, Lily, Robin and Barney. An orange fox catches them before they scatter.`, "narrator"),
-      line("Ted", "My friends are on the roof debating one very small gap. We have enthusiasm, but the far side could use a safer landing.", "ted"),
-      line(player.name, "Upstairs.", "player")
+      line("Narrator", `Five name cards slide from beneath the ${flower.name}. An orange fox catches four.`, "narrator"),
+      line("Ted", "Small rooftop issue. Marshall says jump, Lily says absolutely not, Robin says she could do it, and Barney has named the jump. We need cushions.", "ted"),
+      dogLine("Cushions first.", "Let's make it safe.")
     ],
     arrival: () => [
-      line("Ted", "The gap is small enough to regret and large enough to discuss for too long.", "ted"),
-      line("Marshall", "I measured it with my shoe. Emotionally, the result was excellent.", "marshall"),
-      line("Lily", "We are going to need a better unit of measurement.", "lily")
+      line("Ted", "For context, the gap looked much smaller from downstairs.", "ted"),
+      line("Marshall", "I measured it with my shoe. Four shoes and one bad idea.", "marshall"),
+      line("Lily", "Great. We're using the cushions.", "lily")
     ],
     steps: [
       { x: 315, kicker: "A pile of market cushions", label: "Gather the soft cushions", objective: "Collect cushions for the landing", lines: () => [
-        line("Narrator", "Cushions, flower sacks and one folded awning make a surprisingly respectable pile.", "narrator"),
-        line("Robin", "That already looks less terrible.", "robin")
+        line("Narrator", "Cushions, flower sacks and a folded awning make a landing pad.", "narrator"),
+        line("Robin", "Now it looks like a bad idea with planning.", "robin")
       ] },
       { x: 555, kicker: "The little rooftop gap", label: "Build the landing", objective: "Place the soft landing", lines: () => [
-        line("Narrator", "The gap stays exactly as wide, but the landing becomes considerably kinder.", "narrator"),
-        line("Barney", "Safety, but with presentation. Acceptable.", "barney")
+        line("Narrator", "The last cushion wedges into place. Nothing rolls off the roof.", "narrator"),
+        line("Barney", "Soft landing, dramatic lighting. This is becoming an event.", "barney")
       ] },
       { x: 725, kicker: "The market signal lamp", label: "Switch on the landing light", objective: "Light the far side", lines: () => [
-        line("Narrator", "A warm signal appears on the far side. Ted, Marshall, Lily, Robin and Barney cross one after another.", "narrator"),
-        line("Ted", "Sometimes the way across only needs someone to prepare the other side.", "ted")
+        line("Narrator", "The signal lamp comes on. Ted, Marshall, Lily, Robin and Barney cross one at a time.", "narrator"),
+        line("Ted", "Okay. Nobody make this symbolic.", "ted")
       ] }
     ],
     solved: () => [
-      line("Lily", "The landing needs a few flowers. Then it will look intentional.", "lily"),
-      line("Ted", "I know where to find one. See you downstairs.", "ted")
+      line("Lily", "It looks planned now. Let's get off the roof before Barney adds a ribbon cutting.", "lily"),
+      line("Ted", "Back downstairs.", "ted")
     ],
     returned: (flower) => [
-      line("Ted", "Everyone made it across. Now the landing can look as intentional as Lily promised.", "ted"),
-      line("Narrator", `The ${flower.short} becomes the centre of a very soft rooftop landing.`, "narrator")
+      line("Ted", "Crossing complete. Marshall counted six people, which is impressive because there were five of us.", "ted"),
+      line("The Florist", `The last ${flower.short} went into the closing bundle. It left about a minute ago.`, "florist"),
+      line("Ted", "We took longer than a four-shoe gap should.", "ted"),
+      dogLine("One left.", "There's still one left.")
     ]
   }
 ];
@@ -504,15 +518,15 @@ function chooseDog(type) {
     ui.status.textContent = `${player.name} set out for the flower market`;
     updateHUD();
     showDialogue([
-      line("Narrator", "Blue hour settles over the road. The flower market will close with the last light.", "narrator"),
-      line(player.name, "One flower. I can choose one flower.", "player"),
-      line("Narrator", "The familiar bench stays behind as the market lights glow ahead.", "narrator")
+      line("Narrator", "6:42 p.m. The rain has stopped. The flower market closes at sunset.", "narrator"),
+      dogLine("One flower. Easy.", "One flower. Carefully."),
+      line("Narrator", "The market is four streets away. The walk begins.", "narrator")
     ], resumePlay);
   });
 }
 
 function resetGame() {
-  flowers.forEach((flower) => { flower.active = true; });
+  flowers.forEach((flower) => { flower.active = true; flower.sale = null; });
   memorySpots.forEach((spot) => { spot.seen = false; });
   choiceMemories.length = 0; particles.length = 0;
   Object.assign(scene, { resolved: 0, darkness: 0, aquarium: false, pool: false, cats: false, bell: false, leap: false });
@@ -574,15 +588,15 @@ function checkJourneyTransitions() {
   if (currentScene === "dateNight" && !journey.routeBeat && player.x > 540) {
     journey.routeBeat = true;
     showDialogue([
-      line("Narrator", "The rain has stopped, but every window still holds a piece of sunset.", "narrator"),
-      line(player.name, "Plenty of road left.", "player")
+      line("Narrator", "A bus cuts through the last puddle. Four paws stop just outside the splash.", "narrator"),
+      dogLine("Almost.", "That was close.")
     ], resumePlay);
     return;
   }
   if (currentScene === "dateNight" && player.x >= SCENES.dateNight.maxX - 2 && keys.right) {
     switchScene("catStories", 125, () => {
       ui.status.textContent = "The covered arcade is still awake";
-      showLocation("THE EVENING ROUTE", "Cafe, Stories & Studio", "Small things wait behind warm glass");
+      showLocation("THE EVENING ROUTE", "Cafe, Stories & Studio", "Cats, stories and one late revision");
       updateHUD(); resumePlay();
     }, "right");
     return;
@@ -634,8 +648,9 @@ function handleUp() {
         completeQuestAtMarket();
       } else if (firstEntry) {
         showDialogue([
-          line("The Florist", `Good evening, ${player.name}. Six blooms are still looking for a home.`, "florist"),
-          line("The Florist", "Choose whichever feels right. The market has a habit of complicating simple errands.", "florist")
+          line("The Florist", `Evening, ${player.name}. Six flowers left. Please choose with your eyes before your paws.`, "florist"),
+          dogLine("One.", "Just one."),
+          line("The Florist", "Good. A simple errand.", "florist")
         ], resumePlay);
       } else resumePlay();
     }, "right");
@@ -645,7 +660,7 @@ function handleUp() {
         activeQuest.stage = "solve";
         ui.chapter.textContent = `SIDE QUEST - ${activeQuest.title}`;
         ui.status.textContent = `${player.name} reached the ${activeQuest.place}`;
-        showLocation("A MEMORY MADE SOLID", activeQuest.place.toUpperCase(), "Follow the small clues from left to right");
+        showLocation("A QUICK DETOUR", activeQuest.place.toUpperCase(), "Follow the clues from left to right");
         updateHUD();
         showDialogue(activeQuest.arrival(), resumePlay);
       } else {
@@ -705,9 +720,9 @@ function interactTraveller() {
   if (travellerEncounter.stage === "waiting") {
     tone(610, 0.08, 0.025);
     showDialogue([
-      line("Narrator", "A traveller beside the aquarium steps checks the same three pockets twice. A compact suitcase waits at her heel.", "narrator"),
-      line("The Traveller", "Sorry—did a small blue luggage tag pass you? The wind seemed more certain about its destination than I was.", "traveller"),
-      line(player.name, "Something blue went that way.", "player")
+      line("Narrator", "A traveller checks the same three pockets twice. A compact suitcase stands at her heel.", "narrator"),
+      line("The Traveller", "Passport, charger, three snacks—and no luggage tag. Did a blue one go past?", "traveller"),
+      dogLine("Fast. Toward the bus stop.", "It went toward the bus stop.")
     ], () => {
       travellerEncounter.stage = "searching";
       nearbyTraveller = false;
@@ -720,10 +735,10 @@ function interactTraveller() {
   travellerEncounter.stage = "receiving";
   tone(784, 0.11, 0.035);
   showDialogue([
-    line("The Traveller", "There it is. Every trip begins with wondering whether one important thing stayed behind.", "traveller"),
-    line("Narrator", "The tag clicks back onto the suitcase. Its corners have been softened by several journeys.", "narrator"),
-    line("The Traveller", "Thank you. I should see what the next street has been keeping.", "traveller"),
-    line(player.name, "Good road.", "player")
+    line("The Traveller", "There it is. The one item not on my checklist.", "traveller"),
+    line("Narrator", "The blue tag clicks back onto the suitcase.", "narrator"),
+    line("The Traveller", "Thank you. Next trip: two tags. Possibly three.", "traveller"),
+    dogLine("Good plan.", "Two should be enough.")
   ], beginTravellerDeparture);
 }
 
@@ -731,8 +746,8 @@ function collectTravelTag() {
   if (travellerEncounter.stage !== "searching") return;
   tone(880, 0.1, 0.03);
   showDialogue([
-    line("Narrator", "A blue tag rests against the kerb, its tiny strap still trembling from the wind.", "narrator"),
-    line(player.name, "Found you.", "player")
+    line("Narrator", "The blue tag is wedged beneath a bus-stop timetable.", "narrator"),
+    dogLine("Blue. Found.", "Found the blue one.")
   ], () => {
     travellerEncounter.stage = "returning";
     travellerEncounter.hasTag = true;
@@ -851,27 +866,29 @@ function completeQuestAtMarket() {
   currentFlower = quest.flower;
   showDialogue(quest.returned(quest.flower), () => {
     activeQuest = null;
-    resolveEncounter();
+    resolveEncounter(quest);
   });
 }
 
-function resolveEncounter() {
-  currentFlower.active = false;
+function resolveEncounter(quest) {
+  const soldFlower = currentFlower;
+  soldFlower.active = false;
+  soldFlower.sale = { ...quest.sellout, order: scene.resolved };
   const flag = ["aquarium", "pool", "cats", "bell", "leap"][scene.resolved];
   if (flag) scene[flag] = true;
   scene.resolved += 1; scene.darkness = scene.resolved * 0.033;
-  spawnPetals(player.x, player.y - 46, 18);
+  spawnSaleSlips(player.x, player.y - 46, soldFlower.sale.accent, 12);
   currentFlower = null; updateHUD();
-  ui.status.textContent = scene.resolved === 5 ? "Only one bloom remains" : "Another story crossed the aisle";
+  ui.status.textContent = scene.resolved === 5 ? "Only one bloom remains" : `${soldFlower.short} sold out`;
   resumePlay();
 }
 
 function finalEncounter(flower) {
   showDialogue([
-    line("Narrator", `At the quiet edge of the market, the ${flower.name} leans toward you.`, "narrator"),
-    line(player.name, "This one waited.", "player"),
-    line("The Florist", "Or perhaps it was patient enough to wait for the right pair of paws.", "florist"),
-    line("Narrator", "The last bloom slips carefully into its paper sleeve.", "narrator")
+    line("Narrator", `Only the ${flower.name} remains. This time, nobody runs into the aisle.`, "narrator"),
+    dogLine("Mine?", "May I?"),
+    line("The Florist", "After all that? Definitely yours.", "florist"),
+    line("Narrator", "The florist wraps the stem twice. One careful bite tests the paper sleeve.", "narrator")
   ], () => beginHomecoming(flower));
 }
 
@@ -885,8 +902,8 @@ function beginHomecoming(flower) {
     showLocation("NEAR HOME", "The Familiar Bench", "Someone is waiting beneath the streetlamp");
     updateHUD();
     showDialogue([
-      line("Narrator", "The market folds away behind you. One flower travels carefully between small teeth.", "narrator"),
-      line("Narrator", "Ahead, the familiar bench is no longer empty.", "narrator")
+      line("Narrator", "The paper sleeve rustles with every step. The flower survives.", "narrator"),
+      line("Narrator", "At the familiar bench, someone lifts a hand.", "narrator")
     ], resumePlay);
   }, "right");
 }
@@ -896,11 +913,13 @@ function meetAtBench() {
   journey.reunion = true; player.direction = "right";
   showDialogue([
     line("Narrator", "The other dog has already claimed the warmest place beside the bench.", "narrator"),
-    line("Her", "You made it.", "her"),
+    line("Her", "You took your time.", "her"),
     line(player.name, "Mmph.", "player"),
-    line("Narrator", "A slightly crumpled flower is set down with great care.", "narrator"),
-    line("Her", "Come on. There is room here.", "her"),
-    line("Narrator", "For a little while, the road, the market and every interruption become one more story for the bench.", "narrator")
+    line("Narrator", "The flower lands on the bench. One petal is bent; the paper is damp.", "narrator"),
+    line("Her", "You carried that all the way?", "her"),
+    line("Narrator", "A wagging tail gives the answer.", "narrator"),
+    line("Her", "Okay. Sit. You can tell me the long version.", "her"),
+    line("Narrator", "They stay until the streetlamp clicks off.", "narrator")
   ], () => showEnding(endingFlower));
 }
 
@@ -909,14 +928,17 @@ function showEnding(flower) {
   ui.dialogue.hidden = true; ui.hud.hidden = true; ui.touch.hidden = true;
   ui.endingFlower.textContent = flower.symbol; ui.endingFlower.style.color = flower.color;
   ui.endingTitle.textContent = `${player.name} brought the ${flower.name} home.`;
-  ui.endingCopy.textContent = "The flower found its way home. Some plans change; the care behind them does not.";
-  ui.endingMemory.textContent = "A familiar bench, both dogs, and one flower";
+  ui.endingCopy.textContent = "The flower arrived a little rumpled and very carefully carried.";
+  ui.endingMemory.textContent = "A familiar bench, both dogs, and the long version";
   ui.ending.hidden = false; ui.chapter.textContent = "EPILOGUE · BLUE HOUR"; scene.darkness = 0.19;
   setMenuSelection(0);
   tone(523, 0.4, 0.035); setTimeout(() => tone(659, 0.45, 0.028), 240); setTimeout(() => tone(784, 0.7, 0.02), 480);
 }
 
 function line(speaker, text, portrait, choices = null) { return { speaker, text, portrait, choices }; }
+function dogLine(maltipooText, malteseText = maltipooText) {
+  return line(player.name, player.type === "maltese" ? malteseText : maltipooText, "player");
+}
 function choice(label, memory, followup) { return { label, memory, followup }; }
 
 function showDialogue(lines, onComplete) {
@@ -1011,7 +1033,7 @@ function updateHUD() {
   }
   const count = flowers.filter((flower) => flower.active).length;
   ui.count.textContent = count === 1 ? "The last bloom remains" : `${count} blooms remain`;
-  ui.quest.textContent = count === 1 ? "Choose the flower that waited" : "Choose one flower to take home";
+  ui.quest.textContent = count === 1 ? "Choose the last flower" : "Choose one flower to take home";
   appendPips(6, count);
 }
 
@@ -1177,7 +1199,7 @@ function updateVisitorSequence(time) {
 function draw(time) {
   ctx.clearRect(0, 0, 960, 540);
   ctx.save(); ctx.translate(-Math.floor(camera.x), 0);
-  drawSceneBackground(); drawDoorHints(time); drawMemoryProps(time); drawTravellerHints(time); drawQuestHint(time); drawFlowerMarkers(time); drawNPCs(time);
+  drawSceneBackground(); drawSoldOutDisplays(time); drawDoorHints(time); drawMemoryProps(time); drawTravellerHints(time); drawQuestHint(time); drawFlowerMarkers(time); drawNPCs(time);
   if (!['title', 'select', 'loading'].includes(state)) {
     drawDogSprite(ctx, player.x, player.y, player.type, player.pose, player.direction, player.walkFrame, 1);
     if (journey.returning && currentScene === "bench" && endingFlower) drawCarriedFlower(player.x, player.y, player.direction, endingFlower, time);
@@ -1357,6 +1379,45 @@ function drawFlowerMarkers(time) {
   if (state === "playing") drawWorldIndicator(flower.stand, SCENES.market.groundY - 116, "E", time, nearbyFlower === flower);
 }
 
+function drawSoldOutDisplays(time) {
+  if (currentScene !== "market") return;
+  flowers.forEach((flower, index) => {
+    if (flower.active || !flower.sale) return;
+    const [x, y] = flower.anchor;
+    const sway = Math.sin(time / 850 + index * 1.7) * 0.012;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(18, 15, 27, .42)";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 13, 42, 54, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.translate(Math.round(x), Math.round(y + 20));
+    ctx.rotate(flower.sale.tilt + sway);
+    ctx.strokeStyle = "rgba(224, 199, 145, .78)";
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(-31, -39); ctx.lineTo(31, 39); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(31, -39); ctx.lineTo(-31, 39); ctx.stroke();
+
+    const cardWidth = flower.sale.tag.length > 7 ? 66 : 54;
+    ctx.fillStyle = "#d9c39a";
+    ctx.fillRect(-cardWidth / 2, -14, cardWidth, 29);
+    ctx.fillStyle = "#b89b6f";
+    ctx.fillRect(-cardWidth / 2, -14, cardWidth, 4);
+    ctx.strokeStyle = "#5d473d";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-cardWidth / 2, -14, cardWidth, 29);
+    ctx.fillStyle = flower.sale.accent;
+    ctx.fillRect(-cardWidth / 2 + 5, -6, cardWidth - 10, 3);
+    ctx.fillStyle = "#342735";
+    ctx.font = `700 ${flower.sale.tag.length > 7 ? 7 : 8}px monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(flower.sale.tag, 0, 6);
+    ctx.restore();
+  });
+}
+
 const visitorSpriteRects = {
   tankkeeper: { x: 285, y: 77, width: 183, height: 385 },
   poolplayer: { x: 684, y: 80, width: 184, height: 382 },
@@ -1408,36 +1469,76 @@ const supportingCastRects = {
   bell: { x: 1420, y: 443, width: 263, height: 274 }
 };
 
+// Keep every rooftop guest clearly human-sized beside the playable dog. The
+// foot offsets account for the characters' different shoes and keep the
+// visible soles locked to the same paving line.
+const supportingCastLayout = {
+  marshall: { height: 154, footOffset: 1 },
+  lily: { height: 158, footOffset: 1 },
+  robin: { height: 154, footOffset: 1 },
+  barney: { height: 152, footOffset: 2 }
+};
+
 function drawRooftopCast(time) {
   if (currentScene !== "rooftop" || activeQuest?.id !== "leap") return;
-  const footY = SCENES.rooftop.groundY - 2;
-  drawVisitorSprite(780, footY, visitorSpriteRects.ted, "right", time, 0.94);
+  const footY = SCENES.rooftop.groundY + 1;
+  drawRooftopLeadSprite(780, footY, time);
   if (!assets.supportingCast) return;
   [
-    ["marshall", 840],
-    ["lily", 900],
-    ["robin", 945],
-    ["barney", 995]
+    ["marshall", 842],
+    ["lily", 905],
+    ["robin", 952],
+    ["barney", 1012]
   ].forEach(([kind, x], index) => drawSupportingSprite(x, footY, kind, time, index));
 }
 
-function drawSupportingSprite(x, footY, kind, time, offset = 0) {
-  const rect = supportingCastRects[kind];
-  if (!rect) return;
-  const drawHeight = kind === "marshall" ? 128 : kind === "barney" ? 124 : 132;
+function drawRooftopLeadSprite(x, footY, time) {
+  const rect = visitorSpriteRects.ted;
+  if (!assets.visitors || !rect) return;
+  const drawHeight = 158;
   const drawWidth = drawHeight * (rect.width / rect.height);
-  const idle = Math.sin(time / 680 + offset * 1.3) * 0.65;
+  const breathe = 1 + Math.sin(time / 760) * 0.0025;
 
   ctx.save();
-  ctx.globalAlpha = 0.27;
-  ctx.fillStyle = "#17101f";
+  ctx.globalAlpha = 0.34;
+  ctx.fillStyle = "#111522";
   ctx.beginPath();
-  ctx.ellipse(x, footY - 2, Math.min(25, drawWidth * 0.34), 4, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, footY + 1, Math.min(36, drawWidth * 0.34), 5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
   ctx.save();
-  ctx.translate(Math.round(x), Math.round(footY + idle));
+  ctx.translate(Math.round(x), Math.round(footY));
+  ctx.scale(1, breathe);
+  ctx.filter = "saturate(.9) brightness(.94) contrast(1.04)";
+  ctx.drawImage(
+    assets.visitors,
+    rect.x, rect.y, rect.width, rect.height,
+    -drawWidth / 2, -drawHeight, drawWidth, drawHeight
+  );
+  ctx.restore();
+}
+
+function drawSupportingSprite(x, footY, kind, time, offset = 0) {
+  const rect = supportingCastRects[kind];
+  const layout = supportingCastLayout[kind];
+  if (!rect || !layout) return;
+  const drawHeight = layout.height;
+  const drawWidth = drawHeight * (rect.width / rect.height);
+  const groundedY = footY + layout.footOffset;
+  const breathe = 1 + Math.sin(time / 720 + offset * 1.3) * 0.0025;
+
+  ctx.save();
+  ctx.globalAlpha = 0.34;
+  ctx.fillStyle = "#111522";
+  ctx.beginPath();
+  ctx.ellipse(x, groundedY + 1, Math.min(27, drawWidth * 0.38), 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(groundedY));
+  ctx.scale(1, breathe);
   ctx.filter = "saturate(.9) brightness(.94) contrast(1.04)";
   ctx.drawImage(
     assets.supportingCast,
@@ -1845,6 +1946,22 @@ function drawNarratorPortrait() {
 
 function drawWorldParticles() { particles.forEach((p) => { ctx.save(); ctx.globalAlpha = Math.min(1,p.life); ctx.translate(p.x,p.y); ctx.rotate(p.rotation); ctx.fillStyle=p.color; ctx.fillRect(-(p.width || 5)/2,-(p.height || 3)/2,p.width || 5,p.height || 3); ctx.restore(); }); }
 function spawnPetals(x,y,count) { for (let i=0;i<count;i++) particles.push({ x,y,vx:-45+Math.random()*90,vy:-55+Math.random()*20,life:1.5+Math.random()*1.2,rotation:Math.random()*6,spin:-4+Math.random()*8,color:["#ed8f8a","#f3c46d","#d39fb5"][i%3] }); }
+function spawnSaleSlips(x, y, accent, count) {
+  const colors = ["#d9c39a", "#b89b6f", accent];
+  for (let index = 0; index < count; index += 1) {
+    particles.push({
+      x, y,
+      vx: -34 + Math.random() * 68,
+      vy: -48 + Math.random() * 24,
+      life: 1.1 + Math.random() * 0.7,
+      rotation: Math.random() * 6,
+      spin: -5 + Math.random() * 10,
+      width: index % 3 === 0 ? 8 : 6,
+      height: index % 3 === 0 ? 4 : 3,
+      color: colors[index % colors.length]
+    });
+  }
+}
 
 function drawLighting(time) {
   ctx.save(); ctx.globalCompositeOperation = "screen";

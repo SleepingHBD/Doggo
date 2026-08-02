@@ -57,15 +57,18 @@ const sandbox = {
   window: { addEventListener() {}, AudioContext: class {}, webkitAudioContext: class {} }
 };
 vm.createContext(sandbox);
-vm.runInContext(fs.readFileSync(path.join(process.cwd(), "game.js"), "utf8"), sandbox, { filename: "game.js" });
+const gameSource = fs.readFileSync(path.join(process.cwd(), "game.js"), "utf8");
+vm.runInContext(gameSource, sandbox, { filename: "game.js" });
 
 const questSummary = vm.runInContext(`questDefinitions.map((quest) => ({
   id: quest.id,
   exterior: quest.exterior,
   interior: quest.interior,
   issuer: quest.issuer,
+  sellout: quest.sellout,
   triggerSpeakers: quest.trigger(flowers[0]).map((entry) => entry.speaker),
   returnSpeakers: quest.returned(flowers[0]).map((entry) => entry.speaker),
+  returnText: quest.returned(flowers[0]).map((entry) => entry.text).join(" "),
   steps: quest.steps.map((step) => step.x)
 }))`, sandbox);
 const sceneSummary = vm.runInContext(`Object.fromEntries(Object.entries(SCENES).map(([id, config]) => [id, {
@@ -74,6 +77,21 @@ const sceneSummary = vm.runInContext(`Object.fromEntries(Object.entries(SCENES).
 }]))`, sandbox);
 const assetSummary = vm.runInContext(`({ ...assetSources })`, sandbox);
 const markup = fs.readFileSync(path.join(process.cwd(), "index.html"), "utf8");
+
+assert.doesNotMatch(
+  gameSource,
+  /Some evenings ended here slowly|Some memories leave|habit of complicating simple errands|Some plans change|every interruption become/,
+  "the dialogue pass should not restore the old self-consciously philosophical narration"
+);
+const dogVoiceComparison = vm.runInContext(`(() => {
+  player.type = "maltipoo"; player.name = "Momo";
+  const momo = [memorySpots[1].lines().at(-1).text, questDefinitions[1].trigger(flowers[0]).find((entry) => entry.portrait === "player").text];
+  player.type = "maltese"; player.name = "Mallow";
+  const mallow = [memorySpots[1].lines().at(-1).text, questDefinitions[1].trigger(flowers[0]).find((entry) => entry.portrait === "player").text];
+  player.type = "maltipoo"; player.name = "Momo";
+  return { momo, mallow };
+})()`, sandbox);
+assert.notDeepEqual(dogVoiceComparison.momo, dogVoiceComparison.mallow, "Momo and Mallow should have distinct dialogue voices");
 
 assert.match(markup, /Continue\s*<kbd>E<\/kbd>/, "dialogue should advertise the same E action used for interaction");
 assert.match(markup, /<kbd>E<\/kbd> Interact \/ continue/, "the control legend should expose one shared action key");
@@ -94,9 +112,12 @@ for (const quest of questSummary) {
   assert.ok(quest.triggerSpeakers.includes(quest.issuer.name), `${quest.id} visitor should introduce their own obstacle`);
   assert.ok(quest.returnSpeakers.includes(quest.issuer.name), `${quest.id} visitor should close their own obstacle`);
   assert.ok(!quest.triggerSpeakers.includes("The Florist"), `${quest.id} should not be dispatched by the florist`);
-  assert.ok(!quest.returnSpeakers.includes("The Florist"), `${quest.id} should not be closed by the florist`);
+  assert.ok(quest.returnSpeakers.includes("The Florist"), `${quest.id} return should let the florist report the sale while the visitor is present`);
+  assert.ok(quest.sellout?.tag && quest.sellout?.accent && Number.isFinite(quest.sellout?.tilt), `${quest.id} needs a visible sell-out treatment`);
+  assert.match(quest.returnText, /last|final|paid for/i, `${quest.id} return should establish that the flower sold while the dog was away`);
 }
 assert.equal(new Set(questSummary.map((quest) => quest.issuer.sprite)).size, 5, "each obstacle should have a distinct visitor sprite");
+assert.equal(new Set(questSummary.map((quest) => quest.sellout.tag)).size, 5, "each sold flower should receive a distinct market tag");
 assert.equal(vm.runInContext("SCENES.entrance.groundY", sandbox), 452, "the market entrance baseline should place paws on the pavement edge, not the curb face");
 assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 720, "the pool table should block the one-dimensional walk line");
 assert.ok(
@@ -186,6 +207,7 @@ assert.equal(assetSummary.visitorWalk, "assets/character-visitors-walk-v2.png", 
 assert.equal(assetSummary.traveller, "assets/character-traveller-authored-v2.png", "the traveller should use the restrained low-resolution character bible");
 assert.equal(assetSummary.benchCompanion, "assets/character-companion-authored-v2.png", "the ending companion should use the restrained low-resolution character atlas");
 assert.equal(assetSummary.supportingCast, "assets/character-supporting-cast-v2.png", "the rooftop cast and Bell should use the restrained supporting-character atlas");
+assert.equal(assetSummary.bellHome, "assets/interior-bell-home-benchmark-v2.png", "Bell's room should use the smaller Bell and Norwegian flag revision");
 assert.equal("portraits" in assetSummary, false, "portraits should be cropped from the same world-character artwork instead of a mismatched atlas");
 const benchmarkBackgrounds = {
   aquarium: "assets/exterior-aquarium-benchmark-v1.png",
@@ -196,7 +218,7 @@ const benchmarkBackgrounds = {
   aquariumInside: "assets/interior-aquarium-benchmark-v1.png",
   poolInside: "assets/interior-pool-benchmark-v1.png",
   catInside: "assets/interior-cat-cafe-benchmark-v2.png",
-  bellHome: "assets/interior-bell-home-benchmark-v1.png",
+  bellHome: "assets/interior-bell-home-benchmark-v2.png",
   rooftop: "assets/rooftop-benchmark-v1.png"
 };
 for (const [asset, source] of Object.entries(benchmarkBackgrounds)) {
@@ -281,13 +303,19 @@ assert.doesNotThrow(() => vm.runInContext(`
   drawNPCs(1200);
   for (const kind of ["marshall", "lily", "robin", "barney", "bell", "narrator"]) drawPortrait(kind);
 `, sandbox), "the rooftop cast, Bell, and narrator portraits should render from the unified character system");
+const rooftopCastLayout = vm.runInContext(`Object.fromEntries(Object.entries(supportingCastLayout).map(([kind, layout]) => [kind, ({ ...layout })]))`, sandbox);
+assert.ok(
+  Object.values(rooftopCastLayout).every(({ height, footOffset }) => height >= 150 && footOffset >= 1),
+  "every rooftop guest should be clearly taller than the 93px idle dog and anchored at the paving line"
+);
 
 vm.runInContext(`state = "playing"; currentScene = "market"; journey.market = true;`, sandbox);
 for (let questIndex = 0; questIndex < 5; questIndex += 1) {
   vm.runInContext(`
     currentScene = "market";
     state = "playing";
-    startObstacle(flowers.find((flower) => flower.active));
+    var questFlowerId = flowers.find((flower) => flower.active).id;
+    startObstacle(flowers.find((flower) => flower.id === questFlowerId));
     assets.visitors = { width: 1536, height: 1024 };
     assets.visitorWalk = { width: 1254, height: 1254 };
     drawNPCs(360);
@@ -344,7 +372,11 @@ for (let questIndex = 0; questIndex < 5; questIndex += 1) {
   vm.runInContext("dialogue.onComplete();", sandbox);
   assert.equal(vm.runInContext("activeQuest", sandbox), null, "returning should close the active quest");
   assert.equal(vm.runInContext("scene.resolved", sandbox), questIndex + 1, "returning should resolve exactly one obstacle");
+  assert.equal(vm.runInContext("flowers.find((flower) => flower.id === questFlowerId).active", sandbox), false, "the inspected flower should sell out during the detour");
+  assert.equal(vm.runInContext("flowers.find((flower) => flower.id === questFlowerId).sale.tag", sandbox), questSummary[questIndex].sellout.tag, "the sold flower should retain its quest-specific market tag");
+  assert.doesNotThrow(() => vm.runInContext("drawSoldOutDisplays(1200);", sandbox), "sold-out displays should render over unavailable buckets");
 }
 
 assert.equal(vm.runInContext("flowers.filter((flower) => flower.active).length", sandbox), 1, "one final flower should remain");
+assert.equal(vm.runInContext("flowers.filter((flower) => flower.sale).length", sandbox), 5, "five flowers should be visibly marked as sold");
 console.log("Quest flow smoke test passed: five locations resolved, one final flower remains.");
