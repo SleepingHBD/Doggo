@@ -97,6 +97,29 @@ for (const quest of questSummary) {
   assert.ok(!quest.returnSpeakers.includes("The Florist"), `${quest.id} should not be closed by the florist`);
 }
 assert.equal(new Set(questSummary.map((quest) => quest.issuer.sprite)).size, 5, "each obstacle should have a distinct visitor sprite");
+assert.equal(vm.runInContext("SCENES.entrance.groundY", sandbox), 452, "the market entrance baseline should place paws on the pavement edge, not the curb face");
+assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 720, "the pool table should block the one-dimensional walk line");
+assert.ok(
+  vm.runInContext(`questDefinitions.find((quest) => quest.id === "pool").steps.at(-1).x <= SCENES.poolInside.maxX`, sandbox),
+  "the last pool interaction should remain reachable from the table's near corner"
+);
+
+const poolWalkFrames = vm.runInContext(`visitorWalkFrameRects.poolplayer.map(({ y, height }) => ({ y, height }))`, sandbox);
+assert.ok(poolWalkFrames.every(({ y, height }) => y + height <= 456), "pool-player walk crops must end at his shoes and exclude the next row's heads");
+
+const dogFrameSummary = vm.runInContext(`Object.fromEntries(Object.entries(dogMasterFrameRects).map(([breed, groups]) => [breed,
+  Object.fromEntries(Object.entries(groups).map(([group, frames]) => [group, frames.map(({ x, width }) => ({ x, width }))]))
+]))`, sandbox);
+for (const [breed, groups] of Object.entries(dogFrameSummary)) {
+  for (const [group, frames] of Object.entries(groups)) {
+    for (let index = 1; index < frames.length; index += 1) {
+      assert.ok(
+        frames[index - 1].x + frames[index - 1].width < frames[index].x,
+        `${breed} ${group} frame ${index - 1} must not capture pixels from frame ${index}`
+      );
+    }
+  }
+}
 
 for (const source of Object.values(assetSummary)) {
   assert.ok(fs.existsSync(path.join(process.cwd(), source)), `missing asset: ${source}`);
@@ -120,8 +143,17 @@ vm.runInContext(`
 const sprintingDistance = vm.runInContext("player.x - 400", sandbox);
 assert.ok(sprintingDistance > walkingDistance * 1.5, "sprinting should be materially faster than walking");
 assert.equal(vm.runInContext("player.pose", sandbox), "run", "sprinting should use the run pose");
+vm.runInContext(`
+  currentScene = "poolInside";
+  player.x = 710;
+  keys.right = true;
+  keys.sprint = true;
+  update(0.2, 250);
+`, sandbox);
+assert.equal(vm.runInContext("player.x", sandbox), 720, "the dog should stop at the pool table instead of crossing through it");
 assert.doesNotThrow(() => vm.runInContext(`
-  assets.locomotion = { width: 1254, height: 1254 };
+  assets.dogMaltipoo = { width: 1536, height: 1024 };
+  assets.dogMaltese = { width: 1536, height: 1024 };
   assets.visitorWalk = { width: 1254, height: 1254 };
   drawDogSprite(ctx, 400, SCENES.bench.groundY, "maltipoo", "walk", "right", 0, 1);
   drawDogSprite(ctx, 400, SCENES.bench.groundY, "maltese", "run", "left", 3, 1);
@@ -136,8 +168,119 @@ assert.deepEqual(scaleCalls.at(-1), [-1, 1], "a right-moving visitor should mirr
 scaleCalls.length = 0;
 vm.runInContext(`drawVisitorWalkSprite(400, SCENES.market.groundY, "tankkeeper", 0, "left");`, sandbox);
 assert.equal(scaleCalls.length, 0, "a left-moving visitor should keep the source art orientation");
+vm.runInContext(`assets.visitors = { width: 1536, height: 1024 };`, sandbox);
+scaleCalls.length = 0;
+vm.runInContext(`drawVisitorSprite(400, SCENES.market.groundY, visitorSpriteRects.tankkeeper, "right", 200);`, sandbox);
+assert.equal(scaleCalls.length, 0, "a visitor standing left of the dog should face right toward the dog without mirroring");
+scaleCalls.length = 0;
+vm.runInContext(`drawVisitorSprite(400, SCENES.market.groundY, visitorSpriteRects.tankkeeper, "left", 200);`, sandbox);
+assert.deepEqual(scaleCalls.at(-1), [-1, 1], "a returning visitor standing right of the dog should mirror to face left toward the dog");
 vm.runInContext(`keys.right = false; keys.sprint = false; update(0.1, 300);`, sandbox);
 assert.equal(vm.runInContext("player.pose", sandbox), "idle", "releasing movement should stop the sprint pose");
+
+assert.equal(assetSummary.bench, "assets/bench-benchmark-v1.png", "the familiar bench should use the restrained benchmark environment");
+assert.equal(assetSummary.dogMaltipoo, "assets/dog-maltipoo-authored-v2.png", "the brown Maltipoo should use the low-resolution authored animation atlas");
+assert.equal(assetSummary.dogMaltese, "assets/dog-maltese-authored-v2.png", "the white Maltese should use the low-resolution authored animation atlas");
+assert.equal(assetSummary.visitors, "assets/character-visitors-authored-v2.png", "market visitors should share the restrained low-resolution character bible");
+assert.equal(assetSummary.visitorWalk, "assets/character-visitors-walk-v2.png", "market visitors should use restrained walk cycles");
+assert.equal(assetSummary.traveller, "assets/character-traveller-authored-v2.png", "the traveller should use the restrained low-resolution character bible");
+assert.equal(assetSummary.benchCompanion, "assets/character-companion-authored-v2.png", "the ending companion should use the restrained low-resolution character atlas");
+assert.equal(assetSummary.supportingCast, "assets/character-supporting-cast-v2.png", "the rooftop cast and Bell should use the restrained supporting-character atlas");
+assert.equal("portraits" in assetSummary, false, "portraits should be cropped from the same world-character artwork instead of a mismatched atlas");
+const benchmarkBackgrounds = {
+  aquarium: "assets/exterior-aquarium-benchmark-v1.png",
+  dateNight: "assets/exterior-date-night-benchmark-v1.png",
+  catStories: "assets/exterior-cat-stories-benchmark-v1.png",
+  entrance: "assets/market-entrance-benchmark-v1.png",
+  market: "assets/market-interior-benchmark-v1.png",
+  aquariumInside: "assets/interior-aquarium-benchmark-v1.png",
+  poolInside: "assets/interior-pool-benchmark-v1.png",
+  catInside: "assets/interior-cat-cafe-benchmark-v2.png",
+  bellHome: "assets/interior-bell-home-benchmark-v1.png",
+  rooftop: "assets/rooftop-benchmark-v1.png"
+};
+for (const [asset, source] of Object.entries(benchmarkBackgrounds)) {
+  assert.equal(assetSummary[asset], source, `${asset} should use its restrained benchmark background`);
+}
+assert.doesNotThrow(() => vm.runInContext(`
+  for (const config of Object.values(SCENES)) assets[config.asset] = { width: 1672, height: 941 };
+  for (const sceneId of Object.keys(SCENES)) {
+    currentScene = sceneId;
+    drawSceneBackground();
+  }
+`, sandbox), "every environment should render through the shared aspect-preserving background pipeline");
+assert.doesNotThrow(() => vm.runInContext(`
+  assets.bench = { width: 1672, height: 941 };
+  assets.benchCompanion = { width: 1774, height: 887 };
+  assets.dogMaltipoo = { width: 1536, height: 1024 };
+  assets.dogMaltese = { width: 1536, height: 1024 };
+  currentScene = "bench";
+  journey.returning = true;
+  journey.reunion = false;
+  drawSceneBackground();
+  drawNPCs(800);
+  drawPortrait("her");
+`, sandbox), "the benchmark environment and layered ending companion should render together");
+vm.runInContext(`
+  state = "playing";
+  player.x = 820;
+  update(0.1, 850);
+`, sandbox);
+assert.equal(vm.runInContext("nearbyReunion", sandbox), true, "the reunion interaction should align with the rebuilt bench");
+
+vm.runInContext(`
+  resetGame();
+  currentScene = travellerEncounter.scene;
+  state = "playing";
+  player.x = travellerEncounter.x;
+  player.y = SCENES[currentScene].groundY;
+  update(0.1, 400);
+`, sandbox);
+assert.equal(vm.runInContext("nearbyTraveller", sandbox), true, "the roadside traveller should be interactable");
+vm.runInContext(`interact(); dialogue.onComplete();`, sandbox);
+assert.equal(vm.runInContext("travellerEncounter.stage", sandbox), "searching", "the traveller should ask the dog to find the tag");
+vm.runInContext(`
+  state = "playing";
+  player.x = travellerEncounter.tagX;
+  update(0.1, 500);
+`, sandbox);
+assert.equal(vm.runInContext("nearbyTravelTag", sandbox), true, "the lost luggage tag should be interactable");
+vm.runInContext(`interact(); dialogue.onComplete();`, sandbox);
+assert.equal(vm.runInContext("travellerEncounter.stage", sandbox), "returning", "collecting the tag should send the dog back to the traveller");
+vm.runInContext(`
+  state = "playing";
+  player.x = travellerEncounter.x;
+  update(0.1, 600);
+  interact();
+`, sandbox);
+assert.equal(vm.runInContext("travellerEncounter.stage", sandbox), "receiving", "the handoff should use the dedicated receiving pose");
+vm.runInContext(`dialogue.onComplete(); update(0.1, 900); var travellerFrameA = Math.floor(travellerEncounter.walkFrame) % 4; var travellerXA = travellerEncounter.departureX;`, sandbox);
+vm.runInContext(`update(0.1, 1100); var travellerFrameB = Math.floor(travellerEncounter.walkFrame) % 4;`, sandbox);
+assert.notEqual(vm.runInContext("travellerFrameA", sandbox), vm.runInContext("travellerFrameB", sandbox), "the traveller should cycle through distinct walk frames while leaving");
+assert.ok(vm.runInContext("travellerEncounter.departureX > travellerXA", sandbox), "the walk cycle should advance with the traveller's movement");
+vm.runInContext(`update(0.1, 5000);`, sandbox);
+assert.equal(vm.runInContext("travellerEncounter.stage", sandbox), "complete", "the traveller should wave and walk out of frame after the handoff");
+assert.equal(vm.runInContext("scene.resolved", sandbox), 0, "the optional traveller vignette must not consume a flower obstacle");
+assert.doesNotThrow(() => vm.runInContext(`
+  assets.traveller = { width: 1254, height: 1254 };
+  travellerEncounter.stage = "waiting";
+  drawTravellerEncounter(700);
+  travellerEncounter.stage = "departing";
+  travellerEncounter.motionStartedAt = 0;
+  travellerEncounter.walkFrame = 2;
+  drawTravellerEncounter(2000);
+  drawPortrait("traveller");
+`, sandbox), "the traveller's story poses, walk cycle, and portrait should render from the atlas");
+
+assert.doesNotThrow(() => vm.runInContext(`
+  assets.visitors = { width: 1536, height: 1024 };
+  assets.supportingCast = { width: 1774, height: 887 };
+  currentScene = "rooftop";
+  activeQuest = questDefinitions.find((quest) => quest.id === "leap");
+  activeQuest.stage = "solve";
+  drawNPCs(1200);
+  for (const kind of ["marshall", "lily", "robin", "barney", "bell", "narrator"]) drawPortrait(kind);
+`, sandbox), "the rooftop cast, Bell, and narrator portraits should render from the unified character system");
 
 vm.runInContext(`state = "playing"; currentScene = "market"; journey.market = true;`, sandbox);
 for (let questIndex = 0; questIndex < 5; questIndex += 1) {
