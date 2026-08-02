@@ -107,11 +107,14 @@ assert.ok(sprintingDistance > walkingDistance * 1.5, "sprinting should be materi
 assert.equal(vm.runInContext("player.pose", sandbox), "run", "sprinting should use the run pose");
 assert.doesNotThrow(() => vm.runInContext(`
   assets.locomotion = { width: 1254, height: 1254 };
+  assets.visitorWalk = { width: 1254, height: 1254 };
   drawDogSprite(ctx, 400, SCENES.bench.groundY, "maltipoo", "walk", "right", 0, 1);
   drawDogSprite(ctx, 400, SCENES.bench.groundY, "maltese", "run", "left", 3, 1);
+  drawVisitorWalkSprite(400, SCENES.market.groundY, "tankkeeper", 0, "right");
+  drawVisitorWalkSprite(400, SCENES.market.groundY, "ted", 3, "left");
   drawWorldIndicator(400, 320, "E", 100, true);
   drawWorldIndicator(500, 320, "↑", 200, false);
-`, sandbox), "both locomotion cycles should render from the new atlas");
+`, sandbox), "dog and visitor locomotion cycles should render from their atlases");
 vm.runInContext(`keys.right = false; keys.sprint = false; update(0.1, 300);`, sandbox);
 assert.equal(vm.runInContext("player.pose", sandbox), "idle", "releasing movement should stop the sprint pose");
 
@@ -122,8 +125,19 @@ for (let questIndex = 0; questIndex < 5; questIndex += 1) {
     state = "playing";
     startObstacle(flowers.find((flower) => flower.active));
     assets.visitors = { width: 1536, height: 1024 };
+    assets.visitorWalk = { width: 1254, height: 1254 };
     drawNPCs(360);
+  `, sandbox);
+  assert.equal(vm.runInContext("state", sandbox), "visitorArrival", "a visitor should walk in before dialogue starts");
+  assert.ok(vm.runInContext("activeQuest.visitorStartX < activeQuest.visitorCameraX", sandbox), "the visitor should begin beyond the visible left edge");
+  assert.ok(vm.runInContext("activeQuest.visitorTargetX < player.x", sandbox), "the visitor should stop to the left of the dog");
+  vm.runInContext(`
+    update(0.1, 3000);
+  `, sandbox);
+  assert.equal(vm.runInContext("state", sandbox), "dialogue", "dialogue should wait for the walk-in to finish");
+  vm.runInContext(`
     dialogue.onComplete();
+    update(0.1, 6000);
     currentScene = activeQuest.exterior;
     var questDoor = SCENES[currentScene].doors.find((door) => door.quest === activeQuest.id);
     player.x = questDoor.x;
@@ -132,6 +146,7 @@ for (let questIndex = 0; questIndex < 5; questIndex += 1) {
     handleUp();
     dialogue.onComplete();
   `, sandbox);
+  assert.equal(vm.runInContext("activeQuest.visitorPhase", sandbox), "away", "the visitor should leave to the left before control returns");
   assert.equal(vm.runInContext("activeQuest.issuer.name", sandbox), questSummary[questIndex].issuer.name, "the correct visitor should arrive for the obstacle");
   assert.ok(vm.runInContext("Number.isFinite(activeQuest.visitorX)", sandbox), "the market visitor should receive a world position");
   assert.equal(vm.runInContext("activeQuest.stage", sandbox), "solve", "Up should enter the quest location");

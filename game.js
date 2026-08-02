@@ -74,7 +74,8 @@ const assetSources = {
   dogs: "assets/dog-sprites-normalized.png",
   locomotion: "assets/dog-locomotion-v3.png",
   portraits: "assets/portrait-atlas-v2.png",
-  visitors: "assets/market-visitors-v1.png"
+  visitors: "assets/market-visitors-v1.png",
+  visitorWalk: "assets/market-visitor-walk-v1.png"
 };
 const assets = {};
 
@@ -545,8 +546,9 @@ function handleUp() {
       showLocation("INSIDE THE OLD ARCADE", "The Flower Market", "Six blooms wait beneath the lights");
       updateHUD();
       if (activeQuest && activeQuest.stage === "return") {
-        activeQuest.visitorEnteredAt = performance.now();
-        activeQuest.visitorDepartedAt = null;
+        activeQuest.visitorPhase = "returning";
+        activeQuest.visitorDirection = "left";
+        activeQuest.visitorX = clamp(player.x + 108, SCENES.market.minX + 80, SCENES.market.maxX - 80);
         completeQuestAtMarket();
       } else if (firstEntry) {
         showDialogue([
@@ -617,25 +619,66 @@ function interact() {
 
 function startObstacle(flower) {
   const quest = questDefinitions[scene.resolved];
-  const visitorSide = flower.stand >= 790 ? "left" : "right";
-  const visitorX = clamp(flower.stand + (visitorSide === "right" ? 102 : -102), 145, 970);
+  const visitorStartX = camera.x - 105;
+  const visitorTargetX = clamp(player.x - 104, camera.x + 130, camera.x + VIEW_WIDTH - 145);
+  const travelDistance = Math.abs(visitorTargetX - visitorStartX);
   activeQuest = {
     ...quest,
     flower,
     stage: "travel",
     step: 0,
-    visitorSide,
-    visitorX,
-    visitorEnteredAt: performance.now(),
-    visitorDepartedAt: null
+    visitorPhase: "arriving",
+    visitorDirection: "right",
+    visitorStartX,
+    visitorTargetX,
+    visitorX: visitorStartX,
+    visitorCameraX: camera.x,
+    visitorMotionStartedAt: performance.now(),
+    visitorMotionDuration: clamp((travelDistance / 230) * 1000, 1200, 3600),
+    visitorWalkFrame: 0,
+    visitorLastStep: -1
   };
   currentFlower = null;
+  nearbyFlower = null;
+  Object.assign(keys, { left: false, right: false, sprint: false });
+  player.direction = "left";
+  player.pose = "idle";
+  state = "visitorArrival";
+  ui.prompt.hidden = true;
+  ui.touch.classList.remove("is-active");
+  ui.frame.classList.add("is-cinematic");
+  ui.status.textContent = "Footsteps approach from the left";
   updateHUD();
-  showDialogue(activeQuest.trigger(flower), () => {
-    activeQuest.visitorDepartedAt = performance.now();
-    ui.status.textContent = `${activeQuest.issuer.name} went ahead to the ${activeQuest.place}`;
-    resumePlay();
-  });
+}
+
+function finishVisitorArrival() {
+  if (!activeQuest || activeQuest.visitorPhase !== "arriving") return;
+  activeQuest.visitorX = activeQuest.visitorTargetX;
+  activeQuest.visitorPhase = "speaking";
+  activeQuest.visitorDirection = "right";
+  showDialogue(activeQuest.trigger(activeQuest.flower), beginVisitorDeparture);
+}
+
+function beginVisitorDeparture() {
+  if (!activeQuest) { resumePlay(); return; }
+  activeQuest.visitorPhase = "departing";
+  activeQuest.visitorDirection = "left";
+  activeQuest.visitorStartX = activeQuest.visitorX;
+  activeQuest.visitorTargetX = activeQuest.visitorCameraX - 110;
+  activeQuest.visitorMotionStartedAt = performance.now();
+  activeQuest.visitorMotionDuration = clamp((Math.abs(activeQuest.visitorTargetX - activeQuest.visitorStartX) / 250) * 1000, 1050, 3400);
+  activeQuest.visitorWalkFrame = 0;
+  activeQuest.visitorLastStep = -1;
+  player.pose = "idle";
+  state = "visitorDeparture";
+}
+
+function finishVisitorDeparture() {
+  if (!activeQuest || activeQuest.visitorPhase !== "departing") return;
+  activeQuest.visitorX = activeQuest.visitorTargetX;
+  activeQuest.visitorPhase = "away";
+  ui.status.textContent = `${activeQuest.issuer.name} went ahead to the ${activeQuest.place}`;
+  resumePlay();
 }
 
 function interactQuestStep() {
@@ -894,8 +937,13 @@ function update(delta, time) {
     }
   } else { player.moving = false; player.sprinting = false; ui.prompt.hidden = true; }
 
+  if (["visitorArrival", "visitorDeparture"].includes(state)) updateVisitorSequence(time);
+
   camera.target = clamp(player.x - 380, 0, Math.max(0, SCENES[currentScene].width - VIEW_WIDTH));
   if (["title", "select", "loading"].includes(state)) camera.target = 0;
+  if (activeQuest && currentScene === "market" && ["arriving", "speaking", "departing"].includes(activeQuest.visitorPhase)) {
+    camera.target = activeQuest.visitorCameraX;
+  }
   camera.x += (camera.target - camera.x) * Math.min(1, delta * 4.5);
 
   for (let i = particles.length - 1; i >= 0; i--) {
@@ -910,6 +958,25 @@ function update(delta, time) {
       color: ["#eb9a91", "#f0c66d", "#d9b4c3"][Math.floor(Math.random() * 3)]
     });
   }
+}
+
+function updateVisitorSequence(time) {
+  if (!activeQuest || !["arriving", "departing"].includes(activeQuest.visitorPhase)) return;
+  const elapsed = Math.max(0, time - activeQuest.visitorMotionStartedAt);
+  const progress = clamp(elapsed / activeQuest.visitorMotionDuration, 0, 1);
+  const eased = progress * progress * (3 - 2 * progress);
+  activeQuest.visitorX = activeQuest.visitorStartX + (activeQuest.visitorTargetX - activeQuest.visitorStartX) * eased;
+  activeQuest.visitorWalkFrame = Math.floor(elapsed / 135) % 4;
+
+  const step = Math.floor(elapsed / 270);
+  if (step !== activeQuest.visitorLastStep) {
+    activeQuest.visitorLastStep = step;
+    tone(116, 0.035, 0.005);
+  }
+
+  if (progress < 1) return;
+  if (activeQuest.visitorPhase === "arriving") finishVisitorArrival();
+  else finishVisitorDeparture();
 }
 
 function draw(time) {
@@ -1110,6 +1177,29 @@ const visitorSpriteRects = {
   florist: { x: 1024, y: 512, width: 231, height: 474 }
 };
 
+const visitorWalkFrameRects = {
+  tankkeeper: [
+    { x: 99, y: 2, width: 120, height: 230 }, { x: 394, y: 2, width: 120, height: 230 },
+    { x: 676, y: 2, width: 121, height: 230 }, { x: 958, y: 2, width: 118, height: 230 }
+  ],
+  poolplayer: [
+    { x: 91, y: 234, width: 174, height: 223 }, { x: 380, y: 234, width: 173, height: 223 },
+    { x: 669, y: 234, width: 175, height: 223 }, { x: 947, y: 234, width: 174, height: 223 }
+  ],
+  catkeeper: [
+    { x: 101, y: 452, width: 115, height: 231 }, { x: 391, y: 452, width: 117, height: 231 },
+    { x: 678, y: 452, width: 120, height: 231 }, { x: 957, y: 452, width: 112, height: 231 }
+  ],
+  bellkeeper: [
+    { x: 91, y: 682, width: 135, height: 241 }, { x: 383, y: 682, width: 142, height: 241 },
+    { x: 672, y: 682, width: 140, height: 241 }, { x: 951, y: 682, width: 137, height: 241 }
+  ],
+  ted: [
+    { x: 77, y: 925, width: 167, height: 269 }, { x: 366, y: 925, width: 164, height: 269 },
+    { x: 647, y: 925, width: 172, height: 269 }, { x: 932, y: 925, width: 165, height: 269 }
+  ]
+};
+
 function drawNPCs(time) {
   drawMarketVisitor(time);
   if (currentScene === "bench" && journey.returning) {
@@ -1119,24 +1209,47 @@ function drawNPCs(time) {
 }
 
 function drawMarketVisitor(time) {
-  if (currentScene !== "market" || !activeQuest || !["travel", "return"].includes(activeQuest.stage)) return;
+  if (currentScene !== "market" || !activeQuest || activeQuest.visitorPhase === "away") return;
   const rect = visitorSpriteRects[activeQuest.issuer.sprite];
   if (!assets.visitors || !rect) return;
-
-  const elapsed = Math.max(0, time - activeQuest.visitorEnteredAt);
-  const progress = clamp(elapsed / 520, 0, 1);
-  const eased = 1 - Math.pow(1 - progress, 3);
-  const fromSide = activeQuest.visitorSide === "right" ? 58 : -58;
-  let x = activeQuest.visitorX + fromSide * (1 - eased);
-  let alpha = 0.2 + eased * 0.8;
-  if (activeQuest.visitorDepartedAt !== null && activeQuest.visitorDepartedAt !== undefined) {
-    const exitProgress = clamp((time - activeQuest.visitorDepartedAt) / 480, 0, 1);
-    x += fromSide * exitProgress;
-    alpha *= 1 - exitProgress;
-    if (alpha <= 0) return;
+  if (["arriving", "departing"].includes(activeQuest.visitorPhase) && assets.visitorWalk) {
+    drawVisitorWalkSprite(
+      activeQuest.visitorX,
+      SCENES.market.groundY - 2,
+      activeQuest.issuer.sprite,
+      activeQuest.visitorWalkFrame,
+      activeQuest.visitorDirection
+    );
+    return;
   }
-  const direction = activeQuest.visitorSide === "right" ? "left" : "right";
-  drawVisitorSprite(x, SCENES.market.groundY - 2, rect, direction, time, alpha);
+  drawVisitorSprite(activeQuest.visitorX, SCENES.market.groundY - 2, rect, activeQuest.visitorDirection, time);
+}
+
+function drawVisitorWalkSprite(x, footY, sprite, frame, direction) {
+  const frames = visitorWalkFrameRects[sprite];
+  const rect = frames?.[Math.floor(frame) % frames.length];
+  if (!rect) return;
+  const drawHeight = 154;
+  const drawWidth = drawHeight * (rect.width / rect.height);
+
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = "#17101f";
+  ctx.beginPath();
+  ctx.ellipse(x, footY - 2, 29, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(footY));
+  if (direction === "left") ctx.scale(-1, 1);
+  ctx.filter = "saturate(.88) brightness(.9)";
+  ctx.drawImage(
+    assets.visitorWalk,
+    rect.x, rect.y, rect.width, rect.height,
+    -drawWidth / 2, -drawHeight, drawWidth, drawHeight
+  );
+  ctx.restore();
 }
 
 function drawVisitorSprite(x, footY, rect, direction, time, alpha = 1) {
