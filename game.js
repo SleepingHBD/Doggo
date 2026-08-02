@@ -73,7 +73,8 @@ const assetSources = {
   rooftop: "assets/market-rooftop.png",
   dogs: "assets/dog-sprites-normalized.png",
   locomotion: "assets/dog-locomotion-v3.png",
-  portraits: "assets/portrait-atlas-v2.png"
+  portraits: "assets/portrait-atlas-v2.png",
+  visitors: "assets/market-visitors-v1.png"
 };
 const assets = {};
 
@@ -194,9 +195,10 @@ const memorySpots = [
 const questDefinitions = [
   {
     id: "aquarium", exterior: "aquarium", interior: "aquariumInside", place: "aquarium", title: "THE MISSING SHARK",
+    issuer: { name: "Tank Keeper", portrait: "tankkeeper", sprite: "tankkeeper" },
     trigger: (flower) => [
-      line("Narrator", `A delivery tag is tucked beneath the ${flower.name}. Its little blue aquarium stamp is still wet.`, "narrator"),
-      line("The Florist", "The evening headcount is missing one shark. They cannot close the reef display until it is found.", "florist"),
+      line("Narrator", `Just as one paw reaches for the ${flower.name}, a keeper in a blue jacket hurries into the aisle.`, "narrator"),
+      line("Tank Keeper", "Excuse me—are you good at finding things? One shark has slipped out of our evening headcount, and the reef display cannot open without it.", "tankkeeper"),
       line(player.name, "The blue windows.", "player")
     ],
     arrival: () => [
@@ -216,17 +218,18 @@ const questDefinitions = [
         line("Tank Keeper", "There you are. The reef can open after all.", "tankkeeper")
       ] }
     ],
-    solved: () => [line("Tank Keeper", "Please tell the florist the display is ready. I should collect its flowers before closing.", "tankkeeper")],
+    solved: () => [line("Tank Keeper", "I will finish the count and meet you back beside the flowers.", "tankkeeper")],
     returned: (flower) => [
-      line("The Florist", "The keeper came by just ahead of you.", "florist"),
+      line("Tank Keeper", "There you are. The reef is open, and I came back for its centrepiece.", "tankkeeper"),
       line("Narrator", `The ${flower.short} now sits at the centre of the reopened reef display.`, "narrator")
     ]
   },
   {
     id: "pool", exterior: "dateNight", interior: "poolInside", place: "pool hall", title: "ONE CLEAN SHOT",
+    issuer: { name: "Pool Player", portrait: "poolplayer", sprite: "poolplayer" },
     trigger: (flower) => [
-      line("Narrator", `A chalk-blue note is pinned to the ${flower.name}: final frame delayed.`, "narrator"),
-      line("The Florist", "The pool hall promised a closing-night winner. Something about the ceiling has made everyone cautious.", "florist"),
+      line("Narrator", `A pool player arrives as the ${flower.name} is lifted from its bucket, cue held carefully toward the floor.`, "narrator"),
+      line("Pool Player", "One closing-night frame is still waiting. After a few ambitious practice swings, nobody trusts the ceiling—or the lamp.", "poolplayer"),
       line(player.name, "The lamp hangs low.", "player")
     ],
     arrival: () => [
@@ -246,17 +249,18 @@ const questDefinitions = [
         line("Pool Player", "Table safe. Ceiling safe. We have a winner.", "poolplayer")
       ] }
     ],
-    solved: () => [line("Pool Player", "I promised the market a small winner's bouquet. Tell them the frame is finished.", "poolplayer")],
+    solved: () => [line("Pool Player", "I promised the winner something bright. I will meet you back at the market.", "poolplayer")],
     returned: (flower) => [
-      line("Narrator", `A departing player carries the ${flower.short} like a very small trophy.`, "narrator"),
-      line("The Florist", "A clean ending deserves something bright.", "florist")
+      line("Pool Player", "Table safe. Ceiling safe. I think that earns the final frame a proper prize.", "poolplayer"),
+      line("Narrator", `He carries the ${flower.short} away like a very small trophy.`, "narrator")
     ]
   },
   {
     id: "cats", exterior: "catStories", interior: "catInside", place: "cat cafe", title: "DINNER FIRST",
+    issuer: { name: "Cafe Keeper", portrait: "catkeeper", sprite: "catkeeper" },
     trigger: (flower) => [
-      line("Narrator", `A cafe delivery card has caught in the paper sleeve of the ${flower.name}.`, "narrator"),
-      line("The Florist", "The cafe keeper cannot reach the counter. Dinner has become an occupation.", "florist"),
+      line("Narrator", `A cafe keeper reaches the ${flower.name} at the exact same moment, a delivery card held between two fingers.`, "narrator"),
+      line("Cafe Keeper", "I was meant to collect this, but every cat in the cafe has formed a very serious dinner blockade around the counter.", "catkeeper"),
       line(player.name, "Dinner first.", "player")
     ],
     arrival: () => [
@@ -278,15 +282,16 @@ const questDefinitions = [
     ],
     solved: () => [line("Cafe Keeper", "I will run to the market while they are still chewing.", "catkeeper")],
     returned: (flower) => [
-      line("The Florist", "The cafe delivery made it back. Mostly.", "florist"),
+      line("Cafe Keeper", "Perfect timing. The counter is clear again—mostly.", "catkeeper"),
       line("Narrator", `One satisfied cat is asleep on the ${flower.short}'s paper sleeve. The reservation appears final.`, "narrator")
     ]
   },
   {
     id: "bell", exterior: "bench", interior: "bellHome", place: "Bell's home", title: "A QUIET INTRODUCTION",
+    issuer: { name: "Bell's Neighbour", portrait: "bellkeeper", sprite: "bellkeeper" },
     trigger: (flower) => [
-      line("Narrator", `A silver ribbon loops around the ${flower.name}. One handwritten name appears on the tag: Bell.`, "narrator"),
-      line("The Florist", "The delivery cannot be left until Bell decides the visitor is acceptable.", "florist"),
+      line("Narrator", `A neighbour in a plum raincoat pauses beside the ${flower.name}, holding a parcel tied with silver ribbon.`, "narrator"),
+      line("Bell's Neighbour", "This is meant for Bell, but the doorstep belongs to her until she decides otherwise. A calm introduction might help.", "bellkeeper"),
       line(player.name, "Bell.", "player")
     ],
     arrival: () => [
@@ -306,17 +311,21 @@ const questDefinitions = [
         line("Bell", "Prrrp.", "bell")
       ] }
     ],
-    solved: () => [line("Narrator", "The silver delivery ribbon is accepted without further objection.", "narrator")],
+    solved: () => [
+      line("Narrator", "The silver delivery ribbon is accepted without further objection.", "narrator"),
+      line(player.name, "That should do.", "player")
+    ],
     returned: (flower) => [
-      line("The Florist", "Bell's delivery has gone home.", "florist"),
+      line("Bell's Neighbour", "That patient little pause did it. Bell's parcel can finally go home.", "bellkeeper"),
       line("Narrator", `The ${flower.short} went with the silver ribbon. A careful introduction has claimed another bloom.`, "narrator")
     ]
   },
   {
     id: "leap", exterior: "entrance", interior: "rooftop", place: "market rooftop", title: "THE ROOFTOP GAP",
+    issuer: { name: "Ted", portrait: "ted", sprite: "ted" },
     trigger: (flower) => [
-      line("Narrator", `Five tiny name cards tumble from beneath the ${flower.name}: Ted, Marshall, Lily, Robin and Barney.`, "narrator"),
-      line("The Florist", "The rooftop cast will not cross until the landing is ready. The service stairs are outside.", "florist"),
+      line("Narrator", `Five tiny name cards tumble from beneath the ${flower.name}: Ted, Marshall, Lily, Robin and Barney. An orange fox catches them before they scatter.`, "narrator"),
+      line("Ted", "My friends are on the roof debating one very small gap. We have enthusiasm, but the far side could use a safer landing.", "ted"),
       line(player.name, "Upstairs.", "player")
     ],
     arrival: () => [
@@ -338,10 +347,13 @@ const questDefinitions = [
         line("Ted", "Sometimes the way across only needs someone to prepare the other side.", "ted")
       ] }
     ],
-    solved: () => [line("Lily", "The landing needs a few flowers. Then it will look intentional.", "lily")],
+    solved: () => [
+      line("Lily", "The landing needs a few flowers. Then it will look intentional.", "lily"),
+      line("Ted", "I know where to find one. See you downstairs.", "ted")
+    ],
     returned: (flower) => [
-      line("Narrator", `The ${flower.short} has become the centre of a very soft rooftop landing.`, "narrator"),
-      line("The Florist", "Five safe arrivals. One fewer bloom.", "florist")
+      line("Ted", "Everyone made it across. Now the landing can look as intentional as Lily promised.", "ted"),
+      line("Narrator", `The ${flower.short} becomes the centre of a very soft rooftop landing.`, "narrator")
     ]
   }
 ];
@@ -533,6 +545,8 @@ function handleUp() {
       showLocation("INSIDE THE OLD ARCADE", "The Flower Market", "Six blooms wait beneath the lights");
       updateHUD();
       if (activeQuest && activeQuest.stage === "return") {
+        activeQuest.visitorEnteredAt = performance.now();
+        activeQuest.visitorDepartedAt = null;
         completeQuestAtMarket();
       } else if (firstEntry) {
         showDialogue([
@@ -603,11 +617,23 @@ function interact() {
 
 function startObstacle(flower) {
   const quest = questDefinitions[scene.resolved];
-  activeQuest = { ...quest, flower, stage: "travel", step: 0 };
+  const visitorSide = flower.stand >= 790 ? "left" : "right";
+  const visitorX = clamp(flower.stand + (visitorSide === "right" ? 102 : -102), 145, 970);
+  activeQuest = {
+    ...quest,
+    flower,
+    stage: "travel",
+    step: 0,
+    visitorSide,
+    visitorX,
+    visitorEnteredAt: performance.now(),
+    visitorDepartedAt: null
+  };
   currentFlower = null;
   updateHUD();
   showDialogue(activeQuest.trigger(flower), () => {
-    ui.status.textContent = `Return to the ${activeQuest.place}`;
+    activeQuest.visitorDepartedAt = performance.now();
+    ui.status.textContent = `${activeQuest.issuer.name} went ahead to the ${activeQuest.place}`;
     resumePlay();
   });
 }
@@ -1075,11 +1101,68 @@ function drawFlowerMarkers(time) {
   if (state === "playing") drawWorldIndicator(flower.stand, SCENES.market.groundY - 116, "E", time, nearbyFlower === flower);
 }
 
+const visitorSpriteRects = {
+  tankkeeper: { x: 204, y: 16, width: 244, height: 496 },
+  poolplayer: { x: 624, y: 8, width: 232, height: 504 },
+  catkeeper: { x: 1036, y: 14, width: 220, height: 498 },
+  bellkeeper: { x: 197, y: 512, width: 224, height: 470 },
+  ted: { x: 626, y: 512, width: 398, height: 474 },
+  florist: { x: 1024, y: 512, width: 231, height: 474 }
+};
+
 function drawNPCs(time) {
+  drawMarketVisitor(time);
   if (currentScene === "bench" && journey.returning) {
     const otherType = player.type === "maltipoo" ? "maltese" : "maltipoo";
     drawDogSprite(ctx, 835, 421, otherType, "sit", "left", 0, 0.82);
   }
+}
+
+function drawMarketVisitor(time) {
+  if (currentScene !== "market" || !activeQuest || !["travel", "return"].includes(activeQuest.stage)) return;
+  const rect = visitorSpriteRects[activeQuest.issuer.sprite];
+  if (!assets.visitors || !rect) return;
+
+  const elapsed = Math.max(0, time - activeQuest.visitorEnteredAt);
+  const progress = clamp(elapsed / 520, 0, 1);
+  const eased = 1 - Math.pow(1 - progress, 3);
+  const fromSide = activeQuest.visitorSide === "right" ? 58 : -58;
+  let x = activeQuest.visitorX + fromSide * (1 - eased);
+  let alpha = 0.2 + eased * 0.8;
+  if (activeQuest.visitorDepartedAt !== null && activeQuest.visitorDepartedAt !== undefined) {
+    const exitProgress = clamp((time - activeQuest.visitorDepartedAt) / 480, 0, 1);
+    x += fromSide * exitProgress;
+    alpha *= 1 - exitProgress;
+    if (alpha <= 0) return;
+  }
+  const direction = activeQuest.visitorSide === "right" ? "left" : "right";
+  drawVisitorSprite(x, SCENES.market.groundY - 2, rect, direction, time, alpha);
+}
+
+function drawVisitorSprite(x, footY, rect, direction, time, alpha = 1) {
+  const drawHeight = 154;
+  const drawWidth = drawHeight * (rect.width / rect.height);
+  const idle = Math.sin(time / 720 + rect.x) * 0.8;
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.3;
+  ctx.fillStyle = "#17101f";
+  ctx.beginPath();
+  ctx.ellipse(x, footY - 2, Math.min(34, drawWidth * 0.32), 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(Math.round(x), Math.round(footY + idle));
+  if (direction === "right") ctx.scale(-1, 1);
+  ctx.filter = "saturate(.88) brightness(.9)";
+  ctx.drawImage(
+    assets.visitors,
+    rect.x, rect.y, rect.width, rect.height,
+    -drawWidth / 2, -drawHeight, drawWidth, drawHeight
+  );
+  ctx.restore();
 }
 
 function drawFlorist(x, y) {
@@ -1221,6 +1304,15 @@ const portraitCells = {
   robin: [0, 2], barney: [1, 2], her: [2, 2], narrator: [3, 2]
 };
 
+const visitorPortraitRects = {
+  tankkeeper: { x: 245, y: 18, size: 190 },
+  poolplayer: { x: 648, y: 6, size: 190 },
+  catkeeper: { x: 1069, y: 14, size: 185 },
+  bellkeeper: { x: 237, y: 512, size: 185 },
+  ted: { x: 642, y: 512, size: 190 },
+  florist: { x: 1069, y: 512, size: 190 }
+};
+
 function drawPortrait(kind) {
   portraitCtx.clearRect(0, 0, 112, 112);
   if (kind === "player") {
@@ -1228,6 +1320,23 @@ function drawPortrait(kind) {
     gradient.addColorStop(0, "#705366"); gradient.addColorStop(1, "#352b45");
     portraitCtx.fillStyle = gradient; portraitCtx.fillRect(0, 0, 112, 112);
     drawDogSprite(portraitCtx, 56, 105, player.type, "emotional", "right", 0, 0.69);
+    return;
+  }
+  const visitorPortrait = visitorPortraitRects[kind];
+  if (visitorPortrait && assets.visitors) {
+    const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
+    gradient.addColorStop(0, "#685066");
+    gradient.addColorStop(1, "#30283e");
+    portraitCtx.fillStyle = gradient;
+    portraitCtx.fillRect(0, 0, 112, 112);
+    portraitCtx.save();
+    portraitCtx.filter = "saturate(.9) brightness(.92)";
+    portraitCtx.drawImage(
+      assets.visitors,
+      visitorPortrait.x, visitorPortrait.y, visitorPortrait.size, visitorPortrait.size,
+      0, 0, 112, 112
+    );
+    portraitCtx.restore();
     return;
   }
   const cell = portraitCells[kind] || portraitCells.narrator;

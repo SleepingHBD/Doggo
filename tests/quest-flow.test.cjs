@@ -58,6 +58,9 @@ const questSummary = vm.runInContext(`questDefinitions.map((quest) => ({
   id: quest.id,
   exterior: quest.exterior,
   interior: quest.interior,
+  issuer: quest.issuer,
+  triggerSpeakers: quest.trigger(flowers[0]).map((entry) => entry.speaker),
+  returnSpeakers: quest.returned(flowers[0]).map((entry) => entry.speaker),
   steps: quest.steps.map((step) => step.x)
 }))`, sandbox);
 const sceneSummary = vm.runInContext(`Object.fromEntries(Object.entries(SCENES).map(([id, config]) => [id, {
@@ -72,7 +75,13 @@ for (const quest of questSummary) {
   assert.ok(quest.steps.every((x, index) => index === 0 || x > quest.steps[index - 1]), `${quest.id} steps should run left to right`);
   assert.ok(sceneSummary[quest.exterior].doors.some((door) => door.target === quest.interior && door.quest === quest.id), `${quest.id} needs an exterior entrance`);
   assert.ok(sceneSummary[quest.interior].doors.some((door) => door.target === quest.exterior), `${quest.id} needs an interior exit`);
+  assert.ok(quest.issuer?.name && quest.issuer?.portrait && quest.issuer?.sprite, `${quest.id} needs a visible market visitor`);
+  assert.ok(quest.triggerSpeakers.includes(quest.issuer.name), `${quest.id} visitor should introduce their own obstacle`);
+  assert.ok(quest.returnSpeakers.includes(quest.issuer.name), `${quest.id} visitor should close their own obstacle`);
+  assert.ok(!quest.triggerSpeakers.includes("The Florist"), `${quest.id} should not be dispatched by the florist`);
+  assert.ok(!quest.returnSpeakers.includes("The Florist"), `${quest.id} should not be closed by the florist`);
 }
+assert.equal(new Set(questSummary.map((quest) => quest.issuer.sprite)).size, 5, "each obstacle should have a distinct visitor sprite");
 
 for (const source of Object.values(assetSummary)) {
   assert.ok(fs.existsSync(path.join(process.cwd(), source)), `missing asset: ${source}`);
@@ -112,6 +121,8 @@ for (let questIndex = 0; questIndex < 5; questIndex += 1) {
     currentScene = "market";
     state = "playing";
     startObstacle(flowers.find((flower) => flower.active));
+    assets.visitors = { width: 1536, height: 1024 };
+    drawNPCs(360);
     dialogue.onComplete();
     currentScene = activeQuest.exterior;
     var questDoor = SCENES[currentScene].doors.find((door) => door.quest === activeQuest.id);
@@ -121,6 +132,8 @@ for (let questIndex = 0; questIndex < 5; questIndex += 1) {
     handleUp();
     dialogue.onComplete();
   `, sandbox);
+  assert.equal(vm.runInContext("activeQuest.issuer.name", sandbox), questSummary[questIndex].issuer.name, "the correct visitor should arrive for the obstacle");
+  assert.ok(vm.runInContext("Number.isFinite(activeQuest.visitorX)", sandbox), "the market visitor should receive a world position");
   assert.equal(vm.runInContext("activeQuest.stage", sandbox), "solve", "Up should enter the quest location");
   assert.equal(vm.runInContext("currentScene", sandbox), questSummary[questIndex].interior, "quest entrance should load its interior");
 
