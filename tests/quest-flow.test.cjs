@@ -72,8 +72,10 @@ const questSummary = vm.runInContext(`questDefinitions.map((quest) => ({
   triggerText: quest.trigger(flowers[0]).map((entry) => entry.text).join(" "),
   arrivalSpeakers: quest.arrival().map((entry) => entry.speaker),
   arrivalText: quest.arrival().map((entry) => entry.text).join(" "),
-  returnSpeakers: quest.returned(flowers[0]).map((entry) => entry.speaker),
-  returnText: quest.returned(flowers[0]).map((entry) => entry.text).join(" "),
+  closureSpeakers: quest.solved().map((entry) => entry.speaker),
+  closureText: quest.solved().map((entry) => entry.text).join(" "),
+  marketReturnSpeakers: quest.marketReturn(flowers[0]).map((entry) => entry.speaker),
+  marketReturnText: quest.marketReturn(flowers[0]).map((entry) => entry.text).join(" "),
   steps: quest.steps.map((step) => step.x),
   stepGuidance: quest.steps.slice(0, -1).map((step) => ({
     speakers: step.lines().map((entry) => entry.speaker),
@@ -134,11 +136,13 @@ for (const quest of questSummary) {
     assert.ok(guidance.speakers.includes(quest.issuer.name), `${quest.id} step ${stepIndex + 1} should have the visitor direct the next action`);
     assert.match(guidance.text, /check|secure|set up|move|ring|bring|sit|carry|switch/i, `${quest.id} step ${stepIndex + 1} should clearly cue what comes next`);
   }
-  assert.ok(quest.returnSpeakers.includes(quest.issuer.name), `${quest.id} visitor should close their own obstacle`);
+  assert.ok(quest.closureSpeakers.includes(quest.issuer.name), `${quest.id} visitor should close their obstacle at its location`);
+  assert.match(quest.closureText, /stay|finish|pack/i, `${quest.id} closure should establish that the visitor remains behind`);
   assert.ok(!quest.triggerSpeakers.includes("The Florist"), `${quest.id} should not be dispatched by the florist`);
-  assert.ok(quest.returnSpeakers.includes("The Florist"), `${quest.id} return should let the florist report the sale while the visitor is present`);
+  assert.ok(quest.marketReturnSpeakers.includes("The Florist"), `${quest.id} market return should let the florist report the sale`);
+  assert.ok(!quest.marketReturnSpeakers.includes(quest.issuer.name), `${quest.id} visitor should not follow the dog back to the market`);
   assert.ok(quest.sellout?.tag && quest.sellout?.accent && Number.isFinite(quest.sellout?.tilt), `${quest.id} needs a visible sell-out treatment`);
-  assert.match(quest.returnText, /last|final|paid for/i, `${quest.id} return should establish that the flower sold while the dog was away`);
+  assert.match(quest.marketReturnText, /last|closing|paid for/i, `${quest.id} return should establish that the flower sold while the dog was away`);
 }
 assert.equal(new Set(questSummary.map((quest) => quest.issuer.sprite)).size, 5, "each obstacle should have a distinct visitor sprite");
 assert.equal(new Set(questSummary.map((quest) => quest.sellout.tag)).size, 5, "each sold flower should receive a distinct market tag");
@@ -236,7 +240,8 @@ assert.equal(assetSummary.visitorWalk, "assets/character-visitors-walk-v2.png", 
 assert.equal(assetSummary.traveller, "assets/character-traveller-authored-v2.png", "the traveller should use the restrained low-resolution character bible");
 assert.equal(assetSummary.benchCompanion, "assets/character-companion-authored-v2.png", "the ending companion should use the restrained low-resolution character atlas");
 assert.equal(assetSummary.supportingCast, "assets/character-supporting-cast-v2.png", "the rooftop cast and Bell should use the restrained supporting-character atlas");
-assert.equal(assetSummary.bellHome, "assets/interior-bell-home-benchmark-v2.png", "Bell's room should use the smaller Bell and Norwegian flag revision");
+assert.equal(assetSummary.questEffects, "assets/quest-effects-atlas-v1.png", "quest actions should share one authored pixel-art effects atlas");
+assert.equal(assetSummary.bellHome, "assets/interior-bell-home-benchmark-v3.png", "Bell's room should use the empty-chair layered revision with the Norwegian flag");
 assert.equal("portraits" in assetSummary, false, "portraits should be cropped from the same world-character artwork instead of a mismatched atlas");
 const benchmarkBackgrounds = {
   aquarium: "assets/exterior-aquarium-benchmark-v1.png",
@@ -244,15 +249,41 @@ const benchmarkBackgrounds = {
   catStories: "assets/exterior-cat-stories-benchmark-v1.png",
   entrance: "assets/market-entrance-benchmark-v1.png",
   market: "assets/market-interior-benchmark-v1.png",
-  aquariumInside: "assets/interior-aquarium-benchmark-v1.png",
-  poolInside: "assets/interior-pool-benchmark-v1.png",
+  aquariumInside: "assets/interior-aquarium-benchmark-v3.png",
+  poolInside: "assets/interior-pool-benchmark-v2.png",
   catInside: "assets/interior-cat-cafe-benchmark-v2.png",
-  bellHome: "assets/interior-bell-home-benchmark-v2.png",
+  bellHome: "assets/interior-bell-home-benchmark-v3.png",
   rooftop: "assets/rooftop-benchmark-v1.png"
 };
 for (const [asset, source] of Object.entries(benchmarkBackgrounds)) {
   assert.equal(assetSummary[asset], source, `${asset} should use its restrained benchmark background`);
 }
+assert.doesNotMatch(
+  gameSource,
+  /fillRect\(775,\s*182,\s*292,\s*151\)/,
+  "the aquarium should use a shark-free background instead of a flat rectangular tank mask"
+);
+assert.doesNotMatch(
+  gameSource,
+  /fillRect\(500,\s*402,\s*width,\s*25\)/,
+  "the rooftop landing should use grounded cushions instead of a flat rectangular platform"
+);
+assert.match(gameSource, /function drawQuestEffectSprite\(/, "quest props should render from the authored effects atlas");
+assert.match(gameSource, /withWorldClip\(aquariumTankWindows\.deep/, "the discovered shark should remain clipped inside the deep tank");
+assert.match(gameSource, /withWorldClip\(aquariumTankWindows\.reef/, "the tropical fish should remain clipped inside the reef tank");
+assert.match(gameSource, /drawQuestEffectSprite\("guard"/, "the pool lamp guard should use the authored pixel-art treatment");
+assert.doesNotMatch(gameSource, /function drawSharkSilhouette\(/, "the aquarium should not fall back to a flat polygon shark");
+assert.doesNotMatch(gameSource, /function drawPoolLampGuard\(/, "the pool hall should not fall back to programmer-drawn lamp geometry");
+const questEffectSummary = vm.runInContext(`Object.fromEntries(Object.entries(questEffectRects).map(([kind, rect]) => [kind, ({ ...rect })]))`, sandbox);
+assert.deepEqual(
+  Object.keys(questEffectSummary).sort(),
+  ["ball", "bell", "bowls", "cushions", "fish", "guard", "mouse", "shark"],
+  "all eight recurring quest effects should come from the cohesive atlas"
+);
+const reefWindow = vm.runInContext(`({ ...aquariumTankWindows.reef })`, sandbox);
+const fishStartWidth = 42 * (questEffectSummary.fish.width / questEffectSummary.fish.height);
+assert.ok(218 - fishStartWidth / 2 >= reefWindow.x, "the animated fish school should begin fully inside the reef tank glass");
+assert.ok(218 + fishStartWidth / 2 <= reefWindow.x + reefWindow.width, "the animated fish school should not clip through the reef tank's right edge");
 assert.doesNotThrow(() => vm.runInContext(`
   for (const config of Object.values(SCENES)) assets[config.asset] = { width: 1672, height: 941 };
   for (const sceneId of Object.keys(SCENES)) {
@@ -372,12 +403,23 @@ for (let questIndex = 0; questIndex < 5; questIndex += 1) {
   assert.ok(vm.runInContext("Number.isFinite(activeQuest.visitorX)", sandbox), "the market visitor should receive a world position");
   assert.equal(vm.runInContext("activeQuest.stage", sandbox), "solve", "Up should enter the quest location");
   assert.equal(vm.runInContext("currentScene", sandbox), questSummary[questIndex].interior, "quest entrance should load its interior");
+  assert.doesNotThrow(() => vm.runInContext("drawQuestSetPieces(900); drawNPCs(900);", sandbox), `${questSummary[questIndex].id} should render its helper and initial set-piece state`);
 
   for (let stepIndex = 0; stepIndex < 3; stepIndex += 1) {
     vm.runInContext(`
       state = "playing";
       nearbyQuestStep = activeQuest.steps[activeQuest.step];
       interactQuestStep();
+    `, sandbox);
+    assert.equal(vm.runInContext("state", sandbox), "questAction", `${questSummary[questIndex].id} step ${stepIndex + 1} should animate before dialogue`);
+    assert.equal(vm.runInContext("questAction.stepIndex", sandbox), stepIndex, `${questSummary[questIndex].id} should animate the correct step`);
+    assert.doesNotThrow(() => vm.runInContext("questAction.progress = 0.55; drawQuestSetPieces(1200); drawNPCs(1200);", sandbox), `${questSummary[questIndex].id} step ${stepIndex + 1} action should render mid-animation`);
+    vm.runInContext(`
+      updateQuestAction(questAction.startedAt + questAction.duration + 1);
+    `, sandbox);
+    assert.equal(vm.runInContext("state", sandbox), "dialogue", `${questSummary[questIndex].id} step ${stepIndex + 1} dialogue should follow the visual action`);
+    assert.equal(vm.runInContext("activeQuest.visualStep", sandbox), stepIndex + 1, `${questSummary[questIndex].id} step ${stepIndex + 1} should leave a persistent visual change`);
+    vm.runInContext(`
       dialogue.onComplete();
     `, sandbox);
   }
@@ -398,6 +440,8 @@ for (let questIndex = 0; questIndex < 5; questIndex += 1) {
     handleUp();
   `, sandbox);
   assert.equal(vm.runInContext("currentScene", sandbox), "market", "Up should take the player back into the market");
+  assert.equal(vm.runInContext("activeQuest.visitorPhase", sandbox), "away", "the helped visitor should remain at their location instead of reappearing in the market");
+  assert.equal(vm.runInContext("dialogue.lines.some((entry) => entry.speaker === activeQuest.issuer.name)", sandbox), false, "the market sell-out scene should not include the obstacle visitor");
   vm.runInContext("dialogue.onComplete();", sandbox);
   assert.equal(vm.runInContext("activeQuest", sandbox), null, "returning should close the active quest");
   assert.equal(vm.runInContext("scene.resolved", sandbox), questIndex + 1, "returning should resolve exactly one obstacle");

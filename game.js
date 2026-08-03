@@ -68,17 +68,18 @@ const assetSources = {
   catStories: "assets/exterior-cat-stories-benchmark-v1.png",
   entrance: "assets/market-entrance-benchmark-v1.png",
   market: "assets/market-interior-benchmark-v1.png",
-  aquariumInside: "assets/interior-aquarium-benchmark-v1.png",
-  poolInside: "assets/interior-pool-benchmark-v1.png",
+  aquariumInside: "assets/interior-aquarium-benchmark-v3.png",
+  poolInside: "assets/interior-pool-benchmark-v2.png",
   catInside: "assets/interior-cat-cafe-benchmark-v2.png",
-  bellHome: "assets/interior-bell-home-benchmark-v2.png",
+  bellHome: "assets/interior-bell-home-benchmark-v3.png",
   rooftop: "assets/rooftop-benchmark-v1.png",
   dogMaltipoo: "assets/dog-maltipoo-authored-v2.png",
   dogMaltese: "assets/dog-maltese-authored-v2.png",
   visitors: "assets/character-visitors-authored-v2.png",
   visitorWalk: "assets/character-visitors-walk-v2.png",
   traveller: "assets/character-traveller-authored-v2.png",
-  supportingCast: "assets/character-supporting-cast-v2.png"
+  supportingCast: "assets/character-supporting-cast-v2.png",
+  questEffects: "assets/quest-effects-atlas-v1.png"
 };
 const assets = {};
 
@@ -130,6 +131,7 @@ let nearbyTravelTag = false;
 let currentFlower = null;
 let endingFlower = null;
 let activeQuest = null;
+let questAction = null;
 let dialogue = null;
 let lastTime = 0;
 let audioMuted = false;
@@ -242,11 +244,12 @@ const questDefinitions = [
         line("Tank Keeper", "Forty-three fish, six rays, one shark. Excellent.", "tankkeeper")
       ] }
     ],
-    solved: () => [line("Tank Keeper", "Count fixed. I owe you one. Meet you back at the market.", "tankkeeper")],
-    returned: (flower) => [
-      line("Tank Keeper", "Shark accounted for. Reef open. I can finally stop counting everything in this aisle.", "tankkeeper"),
-      line("The Florist", `You just missed the ${flower.short}. The last stem left with a family in yellow raincoats.`, "florist"),
-      line("Tank Keeper", "My shark kept better time than we did.", "tankkeeper"),
+    solved: () => [
+      line("Tank Keeper", "Shark accounted for. The reef can open on time. I'll stay here and update the tour board—thank you.", "tankkeeper"),
+      dogLine("Keep the count at one.", "Glad we found it.")
+    ],
+    marketReturn: (flower) => [
+      line("The Florist", `You just missed the ${flower.short}. A family in yellow raincoats bought the last stem after their aquarium tour.`, "florist"),
       dogLine("Next flower.", "We'll try another.")
     ]
   },
@@ -281,12 +284,13 @@ const questDefinitions = [
         line("Pool Player", "Pocketed. Nothing overhead has filed a complaint.", "poolplayer")
       ] }
     ],
-    solved: () => [line("Pool Player", "Let's get back before anything else files a complaint.", "poolplayer")],
-    returned: (flower) => [
-      line("Pool Player", "Ceiling intact. Lamp intact. Confidence completely restored.", "poolplayer"),
-      line("The Florist", `The last ${flower.short} was paid for while you were gone. Pickup is at closing.`, "florist"),
-      line("Pool Player", "I feel partly responsible for the timing.", "poolplayer"),
-      dogLine("You should.", "Only partly.")
+    solved: () => [
+      line("Pool Player", "Ceiling intact. Lamp intact. Confidence restored. I'll stay for one more frame—with the cue below my shoulder.", "poolplayer"),
+      dogLine("Keep it there.", "One more, carefully.")
+    ],
+    marketReturn: (flower) => [
+      line("The Florist", `The last ${flower.short} was reserved and paid for while you were at the pool hall. Pickup is at closing.`, "florist"),
+      dogLine("Next one.", "We'll keep looking.")
     ]
   },
   {
@@ -320,12 +324,13 @@ const questDefinitions = [
         line("Cafe Keeper", "That's our opening. We train for moments like this.", "catkeeper")
       ] }
     ],
-    solved: () => [line("Cafe Keeper", "I'm following you out while they're still chewing. If anyone asks, they approved my break.", "catkeeper")],
-    returned: (flower) => [
-      line("Cafe Keeper", "Made it. Nobody followed me. I checked twice.", "catkeeper"),
-      line("Narrator", `A customer passes the doorway carrying the last ${flower.short}.`, "narrator"),
-      line("The Florist", "That was the final bunch.", "florist"),
-      line("Cafe Keeper", "Fast shopper. Respect.", "catkeeper"),
+    solved: () => [
+      line("Cafe Keeper", "Delivery bell reached. I'll stay and reset the bowls before anyone invents a second dinner.", "catkeeper"),
+      dogLine("Count them twice.", "Good luck.")
+    ],
+    marketReturn: (flower) => [
+      line("Narrator", `A courier passes the doorway carrying the last ${flower.short}.`, "narrator"),
+      line("The Florist", "It was collected with the cafe's evening order.", "florist"),
       dogLine("Next bucket.", "Let's keep looking.")
     ]
   },
@@ -362,12 +367,11 @@ const questDefinitions = [
     ],
     solved: () => [
       line("Bell's Neighbour", "That sound means yes. Or move six centimetres left. Either way, progress.", "bellkeeper"),
+      line("Bell's Neighbour", "I'll stay here and finish the delivery. Bell can keep the ribbon and make the box her problem.", "bellkeeper"),
       dogLine("I'll take yes.", "That's enough.")
     ],
-    returned: (flower) => [
-      line("Bell's Neighbour", "Bell accepted the parcel, the ribbon, and half the box. I was allowed to keep the receipt.", "bellkeeper"),
+    marketReturn: (flower) => [
       line("The Florist", `A delivery rider collected the last ${flower.short} five minutes ago.`, "florist"),
-      line("Bell's Neighbour", "Bell would respect that schedule.", "bellkeeper"),
       dogLine("Another one, then.", "We still have time.")
     ]
   },
@@ -404,12 +408,11 @@ const questDefinitions = [
     ],
     solved: () => [
       line("Lily", "It looks planned now. Let's get off the roof before Barney adds a ribbon cutting.", "lily"),
-      line("Ted", "Back downstairs.", "ted")
+      line("Ted", "We'll stay long enough to pack the cushions, then take the service stairs. You go ahead.", "ted"),
+      dogLine("No jumping.", "Use the stairs.")
     ],
-    returned: (flower) => [
-      line("Ted", "Crossing complete. Marshall counted six people, which is impressive because there were five of us.", "ted"),
+    marketReturn: (flower) => [
       line("The Florist", `The last ${flower.short} went into the closing bundle. It left about a minute ago.`, "florist"),
-      line("Ted", "We took longer than a four-shoe gap should.", "ted"),
       dogLine("One left.", "There's still one left.")
     ]
   }
@@ -557,7 +560,7 @@ function resetGame() {
   Object.assign(player, { x: 145, y: SCENES.bench.groundY, direction: "right", moving: false, sprinting: false, walkFrame: 0, pose: "idle" });
   Object.assign(keys, { left: false, right: false, sprint: false });
   Object.assign(camera, { x: 0, target: 0 });
-  currentFlower = null; endingFlower = null; activeQuest = null;
+  currentFlower = null; endingFlower = null; activeQuest = null; questAction = null;
   nearbyFlower = null; nearbyMemory = null; nearbyQuestStep = null; nearbyReunion = false;
   nearbyTraveller = false; nearbyTravelTag = false; dialogue = null;
   ui.ending.hidden = true; ui.hud.hidden = true; ui.location.hidden = true;
@@ -659,9 +662,6 @@ function handleUp() {
       showLocation("INSIDE THE OLD ARCADE", "The Flower Market", "Six blooms wait beneath the lights");
       updateHUD();
       if (activeQuest && activeQuest.stage === "return") {
-        activeQuest.visitorPhase = "returning";
-        activeQuest.visitorDirection = "left";
-        activeQuest.visitorX = clamp(player.x + 108, SCENES.market.minX + 80, SCENES.market.maxX - 80);
         completeQuestAtMarket();
       } else if (firstEntry) {
         showDialogue([
@@ -805,6 +805,7 @@ function startObstacle(flower) {
     flower,
     stage: "travel",
     step: 0,
+    visualStep: 0,
     visitorPhase: "arriving",
     visitorDirection: "right",
     visitorStartX,
@@ -863,8 +864,65 @@ function interactQuestStep() {
   if (!activeQuest || activeQuest.stage !== "solve") return;
   const step = activeQuest.steps[activeQuest.step];
   if (!step) return;
-  const isLastStep = activeQuest.step === activeQuest.steps.length - 1;
+  beginQuestAction(step);
+}
+
+const questActionStyles = {
+  aquarium: { color: "#7fd3e7", durations: [1450, 1500, 1900], poses: ["emotional", "emotional", "idle"], directions: ["right", "right", "right"] },
+  pool: { color: "#e0b268", durations: [1450, 1500, 1900], poses: ["emotional", "emotional", "sit"], directions: ["left", "right", "right"] },
+  cats: { color: "#db9b75", durations: [1350, 1750, 1500], poses: ["emotional", "walk", "emotional"], directions: ["left", "right", "right"] },
+  bell: { color: "#b79ac2", durations: [1300, 1700, 2100], poses: ["sit", "emotional", "sit"], directions: ["right", "right", "left"] },
+  leap: { color: "#e5bb68", durations: [1750, 1850, 2600], poses: ["emotional", "emotional", "idle"], directions: ["right", "right", "left"] }
+};
+
+function beginQuestAction(step) {
+  const style = questActionStyles[activeQuest.id];
+  const stepIndex = activeQuest.step;
+  Object.assign(keys, { left: false, right: false, sprint: false });
+  player.moving = false;
+  player.sprinting = false;
+  player.pose = style.poses[stepIndex] || "emotional";
+  player.direction = style.directions[stepIndex] || player.direction;
+  questAction = {
+    questId: activeQuest.id,
+    stepIndex,
+    startedAt: performance.now(),
+    duration: style.durations[stepIndex] || 1500,
+    progress: 0,
+    midpointPlayed: false,
+    color: style.color,
+    cameraX: clamp(step.x - VIEW_WIDTH * 0.5, 0, Math.max(0, SCENES[currentScene].width - VIEW_WIDTH))
+  };
+  state = "questAction";
+  ui.prompt.hidden = true;
+  ui.touch.classList.remove("is-active");
+  ui.frame.classList.add("is-cinematic");
+  ui.status.textContent = step.label;
+  tone(392, 0.08, 0.025);
+}
+
+function updateQuestAction(time) {
+  if (state !== "questAction" || !questAction || !activeQuest) return;
+  questAction.progress = clamp((time - questAction.startedAt) / questAction.duration, 0, 1);
+  if (player.pose === "walk") player.walkFrame = questAction.progress * 8;
+  if (!questAction.midpointPlayed && questAction.progress >= 0.5) {
+    questAction.midpointPlayed = true;
+    tone(activeQuest.id === "aquarium" ? 660 : 523, 0.11, 0.025);
+    spawnQuestActionBurst(player.x, player.y - 42, questAction.color, 9);
+  }
+  if (questAction.progress < 1) return;
+  finishQuestAction();
+}
+
+function finishQuestAction() {
+  if (!questAction || !activeQuest) return;
+  const completedStep = questAction.stepIndex;
+  const step = activeQuest.steps[completedStep];
+  const isLastStep = completedStep === activeQuest.steps.length - 1;
   const lines = [...step.lines(), ...(isLastStep ? activeQuest.solved() : [])];
+  activeQuest.visualStep = Math.max(activeQuest.visualStep, completedStep + 1);
+  spawnQuestActionBurst(step.x, SCENES[currentScene].groundY - 56, questAction.color, isLastStep ? 18 : 12);
+  questAction = null;
   tone(698, 0.09, 0.025);
   showDialogue(lines, () => {
     activeQuest.step += 1;
@@ -877,11 +935,29 @@ function interactQuestStep() {
   });
 }
 
+function spawnQuestActionBurst(x, y, color, count) {
+  const moteCount = Math.min(7, Math.max(4, Math.round(count / 3)));
+  for (let index = 0; index < moteCount; index += 1) {
+    const spread = index - (moteCount - 1) / 2;
+    particles.push({
+      x: x + spread * 4, y: y + Math.abs(spread) * 2,
+      vx: spread * 3,
+      vy: -10 - (index % 3) * 4,
+      life: 0.5 + (index % 3) * 0.1,
+      rotation: 0,
+      spin: 0,
+      width: index % 3 === 0 ? 2 : 1,
+      height: index % 3 === 0 ? 2 : 1,
+      color
+    });
+  }
+}
+
 function completeQuestAtMarket() {
   const quest = activeQuest;
   if (!quest || quest.stage !== "return") { resumePlay(); return; }
   currentFlower = quest.flower;
-  showDialogue(quest.returned(quest.flower), () => {
+  showDialogue(quest.marketReturn(quest.flower), () => {
     activeQuest = null;
     resolveEncounter(quest);
   });
@@ -1149,12 +1225,14 @@ function update(delta, time) {
 
   if (["visitorArrival", "visitorDeparture"].includes(state)) updateVisitorSequence(time);
   if (state === "travellerDeparture") updateTravellerSequence(time);
+  if (state === "questAction") updateQuestAction(time);
 
   camera.target = clamp(player.x - 380, 0, Math.max(0, SCENES[currentScene].width - VIEW_WIDTH));
   if (["title", "select", "loading"].includes(state)) camera.target = 0;
   if (activeQuest && currentScene === "market" && ["arriving", "speaking", "departing"].includes(activeQuest.visitorPhase)) {
     camera.target = activeQuest.visitorCameraX;
   }
+  if (questAction) camera.target = questAction.cameraX;
   if (state === "travellerDeparture") camera.target = travellerEncounter.cameraX;
   camera.x += (camera.target - camera.x) * Math.min(1, delta * 4.5);
 
@@ -1216,9 +1294,12 @@ function updateVisitorSequence(time) {
 function draw(time) {
   ctx.clearRect(0, 0, 960, 540);
   ctx.save(); ctx.translate(-Math.floor(camera.x), 0);
-  drawSceneBackground(); drawSoldOutDisplays(time); drawDoorHints(time); drawMemoryProps(time); drawTravellerHints(time); drawQuestHint(time); drawFlowerMarkers(time); drawNPCs(time);
+  drawSceneBackground(); drawQuestSetPieces(time); drawSoldOutDisplays(time); drawDoorHints(time); drawMemoryProps(time); drawTravellerHints(time); drawQuestHint(time); drawFlowerMarkers(time); drawNPCs(time);
   if (!['title', 'select', 'loading'].includes(state)) {
-    drawDogSprite(ctx, player.x, player.y, player.type, player.pose, player.direction, player.walkFrame, 1);
+    const actionArc = questAction ? Math.sin(questAction.progress * Math.PI) : 0;
+    const actionShift = questAction && !["sit", "idle"].includes(player.pose) ? actionArc * 7 : 0;
+    const actionLift = questAction && player.pose !== "sit" ? actionArc * 3 : 0;
+    drawDogSprite(ctx, player.x + actionShift, player.y - actionLift, player.type, player.pose, player.direction, player.walkFrame, 1);
     if (journey.returning && currentScene === "bench" && endingFlower) drawCarriedFlower(player.x, player.y, player.direction, endingFlower, time);
   }
   drawWorldParticles(); ctx.restore();
@@ -1246,6 +1327,305 @@ function drawImageCover(image, targetWidth, targetHeight) {
   ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, targetWidth, targetHeight);
 }
 
+function questVisualProgress(stepIndex) {
+  if (!activeQuest) return 0;
+  if ((activeQuest.visualStep || 0) > stepIndex) return 1;
+  if (questAction?.questId === activeQuest.id && questAction.stepIndex === stepIndex) {
+    const progress = questAction.progress;
+    return progress * progress * (3 - 2 * progress);
+  }
+  return 0;
+}
+
+function drawQuestSetPieces(time) {
+  if (!activeQuest || currentScene !== activeQuest.interior) return;
+  if (activeQuest.id === "aquarium") drawAquariumQuestVisuals(time);
+  else if (activeQuest.id === "pool") drawPoolQuestVisuals(time);
+  else if (activeQuest.id === "cats") drawCatCafeQuestVisuals(time);
+  else if (activeQuest.id === "bell") drawBellHomeQuestVisuals(time);
+  else if (activeQuest.id === "leap") drawRooftopQuestVisuals(time);
+}
+
+const questEffectRects = {
+  shark: { x: 44, y: 180, width: 405, height: 175 },
+  fish: { x: 503, y: 192, width: 335, height: 188 },
+  bowls: { x: 908, y: 232, width: 349, height: 152 },
+  bell: { x: 1367, y: 212, width: 183, height: 168 },
+  guard: { x: 53, y: 555, width: 431, height: 184 },
+  ball: { x: 613, y: 615, width: 117, height: 120 },
+  mouse: { x: 893, y: 615, width: 267, height: 129 },
+  cushions: { x: 1287, y: 568, width: 309, height: 210 }
+};
+
+const aquariumTankWindows = {
+  reef: { x: 180, y: 199, width: 154, height: 88 },
+  coral: { x: 397, y: 194, width: 320, height: 142 },
+  deep: { x: 769, y: 170, width: 296, height: 166 }
+};
+
+function drawQuestEffectSprite(kind, x, y, height, options = {}) {
+  const atlas = assets.questEffects;
+  const rect = questEffectRects[kind];
+  if (!atlas || !rect) return;
+  const drawWidth = height * (rect.width / rect.height) * (options.stretchX || 1);
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y));
+  ctx.globalAlpha = options.alpha ?? 1;
+  ctx.rotate(options.rotation || 0);
+  ctx.scale(options.mirror ? -1 : 1, options.scaleY || 1);
+  if (options.filter) ctx.filter = options.filter;
+  ctx.drawImage(atlas, rect.x, rect.y, rect.width, rect.height, -drawWidth / 2, -height, drawWidth, height);
+  ctx.restore();
+}
+
+function withWorldClip(rect, callback) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.width, rect.height);
+  ctx.clip();
+  callback();
+  ctx.restore();
+}
+
+function drawPixelContactShadow(x, y, width, alpha = 0.24) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "#17101f";
+  ctx.fillRect(Math.round(x - width / 2), Math.round(y), Math.round(width), 2);
+  ctx.fillRect(Math.round(x - width * 0.34), Math.round(y - 1), Math.round(width * 0.68), 1);
+  ctx.restore();
+}
+
+function drawPixelGlint(x, y, alpha = 1, color = "#f2d58c") {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x - 1), Math.round(y - 5), 2, 4);
+  ctx.fillRect(Math.round(x - 1), Math.round(y + 2), 2, 4);
+  ctx.fillRect(Math.round(x - 5), Math.round(y - 1), 4, 2);
+  ctx.fillRect(Math.round(x + 2), Math.round(y - 1), 4, 2);
+  ctx.fillStyle = "#fff0bd";
+  ctx.fillRect(Math.round(x - 1), Math.round(y - 1), 2, 2);
+  ctx.restore();
+}
+
+function drawAquariumQuestVisuals(time) {
+  const fishProgress = questVisualProgress(0);
+  const bubbleProgress = questVisualProgress(1);
+  const sharkProgress = questVisualProgress(2);
+
+  if (fishProgress > 0) {
+    withWorldClip(aquariumTankWindows.reef, () => {
+      const x = fishProgress < 1 ? 218 + fishProgress * 30 : 248 + Math.sin(time / 760) * 6;
+      const y = 268 + Math.sin(time / 360) * 2;
+      drawQuestEffectSprite("fish", x, y, 42, {
+        alpha: Math.min(0.76, fishProgress * 1.25),
+        filter: "saturate(.78) brightness(.82) contrast(1.04)"
+      });
+    });
+  }
+
+  if (bubbleProgress > 0) {
+    withWorldClip(aquariumTankWindows.coral, () => drawPixelBubbleTrail(time, bubbleProgress));
+  }
+
+  if (sharkProgress > 0) {
+    const revealing = sharkProgress < 1;
+    const x = revealing ? 795 + sharkProgress * 150 : 945 + Math.sin(time / 1700) * 9;
+    const y = revealing ? 278 - Math.sin(sharkProgress * Math.PI) * 4 : 278 + Math.sin(time / 900) * 2;
+    withWorldClip(aquariumTankWindows.deep, () => {
+      drawQuestEffectSprite("shark", x, y, 58, {
+        alpha: revealing ? Math.min(0.82, sharkProgress * 1.4) : 0.72,
+        stretchX: 1 + Math.sin(time / 260) * 0.012,
+        filter: "saturate(.58) brightness(.56) contrast(1.08) hue-rotate(4deg)"
+      });
+    });
+  }
+}
+
+function drawPixelBubbleTrail(time, progress) {
+  const bubbles = [
+    { x: 574, offset: 4, drift: 5, size: 2 },
+    { x: 594, offset: 31, drift: -7, size: 3 },
+    { x: 621, offset: 61, drift: 6, size: 2 },
+    { x: 605, offset: 88, drift: -4, size: 1 },
+    { x: 642, offset: 117, drift: 7, size: 3 },
+    { x: 558, offset: 143, drift: -5, size: 2 },
+    { x: 628, offset: 171, drift: 4, size: 1 }
+  ];
+  ctx.save();
+  bubbles.forEach(({ x: originX, offset, drift, size }, index) => {
+    const travel = (time / 27 + offset) % 178;
+    const reveal = clamp(progress * 1.75 - index * 0.08, 0, 1);
+    const x = originX + Math.sin(time / (290 + index * 37) + index * 1.7) * drift;
+    const y = 329 - travel;
+    ctx.globalAlpha = reveal * (0.24 + (index % 3) * 0.06);
+    ctx.fillStyle = index % 2 === 0 ? "#7da9bc" : "#9bc1ce";
+    if (size === 3) {
+      ctx.fillRect(Math.round(x), Math.round(y), 3, 1);
+      ctx.fillRect(Math.round(x), Math.round(y + 3), 3, 1);
+      ctx.fillRect(Math.round(x - 1), Math.round(y + 1), 1, 2);
+      ctx.fillRect(Math.round(x + 3), Math.round(y + 1), 1, 2);
+    } else {
+      ctx.fillRect(Math.round(x), Math.round(y), size, size);
+      if (size === 2) {
+        ctx.fillStyle = "#c0dbe1";
+        ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+      }
+    }
+  });
+  ctx.restore();
+}
+
+function drawPoolQuestVisuals(time) {
+  const cueProgress = questVisualProgress(0);
+  const guardProgress = questVisualProgress(1);
+  const shotProgress = questVisualProgress(2);
+
+  const cueIsActive = questAction?.questId === "pool" && questAction.stepIndex === 0;
+  if (cueProgress > 0) {
+    if (cueIsActive) {
+      const scanY = 397 - cueProgress * 139;
+      drawPixelGlint(370, scanY, 0.35 + cueProgress * 0.45, "#d9aa5d");
+    }
+    if (cueProgress >= 0.9) drawCueSafetyTag(367, 253, cueProgress);
+  }
+
+  if (guardProgress > 0) {
+    const y = 218 - (1 - guardProgress) * 32;
+    drawQuestEffectSprite("guard", 968, y, 46, {
+      alpha: 0.44 + guardProgress * 0.46,
+      filter: "saturate(.8) brightness(.78) contrast(1.06)"
+    });
+  }
+
+  if (shotProgress > 0 && shotProgress < 1) {
+    const eased = shotProgress * shotProgress * (3 - 2 * shotProgress);
+    const x = 820 + eased * 188;
+    const y = 354 - Math.sin(eased * Math.PI) * 5;
+    drawQuestEffectSprite("ball", x, y, 13, {
+      alpha: Math.min(1, (1 - shotProgress) * 5),
+      rotation: eased * 2.8,
+      filter: "saturate(.75) brightness(.86) contrast(1.08)"
+    });
+  }
+}
+
+function drawCueSafetyTag(x, y, progress) {
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y));
+  ctx.globalAlpha = Math.min(1, progress);
+  ctx.fillStyle = "#4b3028"; ctx.fillRect(-5, -7, 10, 10);
+  ctx.fillStyle = "#c18b49"; ctx.fillRect(-4, -6, 8, 7);
+  ctx.fillStyle = "#e4bc69"; ctx.fillRect(-3, -5, 5, 2);
+  ctx.fillStyle = "#2d2530"; ctx.fillRect(-1, 1, 2, 4);
+  ctx.restore();
+}
+
+function drawCatCafeQuestVisuals(time) {
+  const countProgress = questVisualProgress(0);
+  const bowlsProgress = questVisualProgress(1);
+  const bellProgress = questVisualProgress(2);
+  const bowlPoints = [[224, 373], [328, 373], [413, 373]];
+
+  const countIsActive = questAction?.questId === "cats" && questAction.stepIndex === 0;
+  if (countProgress > 0 && countIsActive) {
+    bowlPoints.forEach(([x, y], index) => {
+      const stagger = clamp(countProgress * 1.7 - index * 0.22, 0, 1);
+      if (stagger > 0) drawPixelGlint(x, y - 16, stagger * (0.58 + Math.sin(time / 260 + index) * 0.12), "#e4b75f");
+    });
+  }
+
+  if (bowlsProgress > 0) {
+    const x = 330 + (560 - 330) * bowlsProgress;
+    const y = 426 - Math.sin(bowlsProgress * Math.PI) * 14;
+    drawPixelContactShadow(x, 426, 58, 0.2 * bowlsProgress);
+    drawQuestEffectSprite("bowls", x, y, 28, {
+      alpha: 0.88,
+      filter: "saturate(.78) brightness(.82) contrast(1.04)"
+    });
+  }
+
+  const bellIsRinging = questAction?.questId === "cats" && questAction.stepIndex === 2;
+  if (bellProgress > 0 && bellIsRinging) {
+    const shake = Math.round(Math.sin(bellProgress * Math.PI * 10) * (1 - bellProgress) * 4);
+    drawQuestEffectSprite("bell", 1000 + shake, 312, 27, {
+      alpha: Math.min(1, bellProgress * 2),
+      filter: "saturate(.82) brightness(.84) contrast(1.05)"
+    });
+    drawPixelSoundTicks(1000, 292, bellProgress, time);
+  }
+}
+
+function drawPixelSoundTicks(x, y, progress, time) {
+  const pulse = 0.42 + Math.sin(time / 90) * 0.12;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, progress * 2) * pulse;
+  ctx.fillStyle = "#e5bd65";
+  ctx.fillRect(Math.round(x - 22), Math.round(y - 3), 6, 2);
+  ctx.fillRect(Math.round(x - 27), Math.round(y - 10), 4, 2);
+  ctx.fillRect(Math.round(x + 16), Math.round(y - 3), 6, 2);
+  ctx.fillRect(Math.round(x + 23), Math.round(y - 10), 4, 2);
+  ctx.fillStyle = "#f3d998";
+  ctx.fillRect(Math.round(x - 17), Math.round(y - 8), 2, 3);
+  ctx.fillRect(Math.round(x + 15), Math.round(y - 8), 2, 3);
+  ctx.restore();
+}
+
+function drawBellHomeQuestVisuals(time) {
+  const mouseProgress = questVisualProgress(1);
+
+  if (mouseProgress > 0) {
+    const x = 510 + mouseProgress * 245;
+    const y = 430 - Math.sin(mouseProgress * Math.PI) * 9;
+    drawPixelContactShadow(x, 431, 32, 0.18 * mouseProgress);
+    drawQuestEffectSprite("mouse", x, y, 23, {
+      rotation: -0.08 + mouseProgress * 0.14,
+      alpha: 0.86,
+      filter: "saturate(.68) brightness(.76) contrast(1.05)"
+    });
+  }
+}
+
+function drawRooftopQuestVisuals(time) {
+  const gatherProgress = questVisualProgress(0);
+  const landingProgress = questVisualProgress(1);
+  const lightProgress = questVisualProgress(2);
+
+  if (gatherProgress > 0) {
+    const x = 340 + gatherProgress * 195 + landingProgress * 22;
+    const y = 429 - Math.sin(gatherProgress * Math.PI) * 4 - Math.sin(landingProgress * Math.PI) * 2;
+    drawPixelContactShadow(x, 430, 72, 0.2 * gatherProgress);
+    drawQuestEffectSprite("cushions", x, y, 48, {
+      rotation: (0.035 - gatherProgress * 0.035) + Math.sin(landingProgress * Math.PI) * -0.018,
+      alpha: Math.min(0.9, gatherProgress * 1.5),
+      filter: "saturate(.58) brightness(.64) contrast(1.05) hue-rotate(9deg)"
+    });
+  }
+
+  if (lightProgress > 0) {
+    drawPixelLampLight(725, 337, lightProgress, time);
+  }
+}
+
+function drawPixelLampLight(x, y, progress, time) {
+  const flicker = 0.74 + Math.sin(time / 150) * 0.08;
+  const motes = [
+    [-3, -17, 2], [5, -12, 1], [-11, -6, 1], [13, 0, 2],
+    [-18, 8, 1], [18, 13, 1], [-9, 20, 2], [7, 26, 1],
+    [-26, 19, 1], [27, 27, 1], [-15, 34, 1], [14, 39, 1]
+  ];
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  motes.forEach(([offsetX, offsetY, size], index) => {
+    const reveal = clamp(progress * 1.6 - index * 0.045, 0, 1);
+    ctx.globalAlpha = reveal * flicker * (index < 4 ? 0.38 : 0.2);
+    ctx.fillStyle = index % 3 === 0 ? "#ffd27a" : "#d99545";
+    ctx.fillRect(Math.round(x + offsetX), Math.round(y + offsetY), size, size);
+  });
+  ctx.restore();
+}
+
 function drawMemoryProps(time) {
   if (journey.returning || activeQuest) return;
   memorySpots.filter((spot) => spot.scene === currentScene).forEach((spot, index) => {
@@ -1271,18 +1651,20 @@ function drawTravellerHints(time) {
 }
 
 function drawTravelTag(x, footY, time) {
-  const bob = Math.sin(time / 300) * 1.4;
-  const glint = 0.45 + Math.sin(time / 240) * 0.25;
+  const bob = Math.round(Math.sin(time / 300));
+  const glint = 0.36 + Math.sin(time / 240) * 0.18;
   ctx.save();
   ctx.translate(Math.round(x), Math.round(footY + bob));
-  ctx.rotate(-0.18);
   ctx.globalAlpha = 0.32;
   ctx.fillStyle = "#17101f";
-  ctx.beginPath(); ctx.ellipse(0, 3, 18, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillRect(-13, 2, 28, 3);
+  ctx.fillRect(-9, 1, 20, 1);
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = "#d9b466"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(-10, -11, 6, Math.PI * 0.45, Math.PI * 1.7); ctx.stroke();
+  ctx.fillStyle = "#a87943";
+  ctx.fillRect(-13, -14, 2, 8); ctx.fillRect(-11, -16, 5, 2); ctx.fillRect(-7, -15, 2, 4);
+  ctx.fillStyle = "#d9b466"; ctx.fillRect(-12, -14, 1, 7); ctx.fillRect(-10, -15, 3, 1);
   ctx.fillStyle = "#2f6f91"; ctx.fillRect(-10, -15, 24, 15);
+  ctx.fillStyle = "#1e4b69"; ctx.fillRect(-10, -2, 24, 2); ctx.fillRect(12, -13, 2, 11);
   ctx.fillStyle = "#6aaac1"; ctx.fillRect(-7, -12, 18, 3);
   ctx.fillStyle = "#d8c7a7"; ctx.fillRect(-5, -6, 11, 2);
   ctx.fillStyle = `rgba(255,237,179,${glint})`; ctx.fillRect(10, -17, 2, 2);
@@ -1300,54 +1682,10 @@ function drawDoorHints(time) {
 }
 
 function drawQuestHint(time) {
-  if (!activeQuest || activeQuest.stage !== "solve" || currentScene !== activeQuest.interior) return;
+  if (state !== "playing" || !activeQuest || activeQuest.stage !== "solve" || currentScene !== activeQuest.interior) return;
   const step = activeQuest.steps[activeQuest.step];
   if (!step) return;
   drawWorldIndicator(step.x, SCENES[currentScene].groundY - 116, "E", time, Math.abs(player.x - step.x) < 70);
-}
-
-function propTop(kind) {
-  return { bench: 337, aquarium: 306, football: 408, pool: 320, chess: 391, gaming: 315, catcafe: 398, stories: 360, agency: 310 }[kind] || 360;
-}
-
-function drawMemoryProp(spot, time) {
-  const x = spot.x; ctx.save(); ctx.globalAlpha = spot.seen ? 0.58 : 0.95;
-  if (spot.kind === "bench") {
-    ctx.strokeStyle = "rgba(240,198,109,.42)"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(x, 342, 38 + Math.sin(time / 600) * 2, 0, Math.PI * 2); ctx.stroke();
-  } else if (spot.kind === "aquarium") {
-    ctx.fillStyle = "#263858"; ctx.fillRect(x - 32, 305, 64, 66); ctx.strokeStyle = "#81a7bd"; ctx.strokeRect(x - 29, 308, 58, 55);
-    ctx.fillStyle = "#df9d64"; ctx.fillRect(x - 17, 330, 8, 4); ctx.fillRect(x + 7, 348, 6, 4);
-    ctx.fillStyle = "#7fb6bd"; ctx.beginPath(); ctx.moveTo(x + 4, 320); ctx.lineTo(x + 18, 325); ctx.lineTo(x + 4, 330); ctx.fill();
-    ctx.fillStyle = "#19283e"; ctx.beginPath(); ctx.moveTo(x - 2, 356); ctx.lineTo(x + 17, 350); ctx.lineTo(x + 26, 357); ctx.lineTo(x + 15, 360); ctx.fill();
-  } else if (spot.kind === "football") {
-    ctx.fillStyle = "rgba(19,13,25,.35)"; ctx.beginPath(); ctx.ellipse(x, 447, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#d6c7ad"; ctx.beginPath(); ctx.arc(x, 426, 15, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#453947"; ctx.fillRect(x - 5, 418, 9, 8); ctx.fillRect(x + 5, 430, 6, 5); ctx.fillRect(x - 12, 432, 6, 5);
-  } else if (spot.kind === "pool") {
-    ctx.fillStyle = "#2a744f"; ctx.fillRect(x - 35, 382, 70, 32); ctx.fillStyle = "#352634"; ctx.fillRect(x - 38, 377, 76, 7); ctx.fillRect(x - 31, 414, 6, 28); ctx.fillRect(x + 25, 414, 6, 28);
-    ctx.strokeStyle = "#d2a46b"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x + 30, 382); ctx.lineTo(x - 5, 313); ctx.stroke();
-    ctx.fillStyle = "#efe1c8"; ctx.fillRect(x - 11, 342, 5, 3); ctx.fillRect(x + 2, 333, 4, 3);
-  } else if (spot.kind === "chess") {
-    ctx.fillStyle = "#4a2f32"; ctx.fillRect(x - 27, 406, 54, 7); ctx.fillRect(x - 23, 413, 5, 27); ctx.fillRect(x + 18, 413, 5, 27);
-    for (let row = 0; row < 6; row++) for (let col = 0; col < 8; col++) {
-      ctx.fillStyle = (row + col) % 2 ? "#d6ad72" : "#6d493d"; ctx.fillRect(x - 24 + col * 6, 370 + row * 6, 6, 6);
-    }
-    ctx.fillStyle = "#eee0c5"; ctx.fillRect(x - 12, 363, 5, 8); ctx.fillRect(x + 7, 366, 5, 5); ctx.fillStyle = "#302937"; ctx.fillRect(x, 361, 5, 10);
-  } else if (spot.kind === "gaming") {
-    ctx.fillStyle = "#211b32"; ctx.fillRect(x - 38, 313, 76, 72); ctx.strokeStyle = "#8d77b0"; ctx.strokeRect(x - 34, 317, 68, 54);
-    ctx.fillStyle = "#c76f8c"; ctx.fillRect(x - 29, 322, 27, 43); ctx.fillStyle = "#5d86b4"; ctx.fillRect(x + 2, 322, 27, 43);
-    ctx.fillStyle = "#e8d7bd"; ctx.fillRect(x - 23, 375, 18, 7); ctx.fillRect(x + 7, 375, 18, 7); ctx.fillStyle = "#2c2536"; ctx.fillRect(x - 18, 372, 8, 4); ctx.fillRect(x + 12, 372, 8, 4);
-  } else if (spot.kind === "catcafe") {
-    [-22, 0, 22].forEach((offset, i) => { drawTinyCat(x + offset, 419 + (i % 2) * 3, i === 1 ? "#b98b69" : "#756978"); drawBowl(x + offset + 7, 441); });
-  } else if (spot.kind === "stories") {
-    ctx.fillStyle = "#62424f"; ctx.fillRect(x - 28, 383, 23, 34); ctx.fillStyle = "#e7c36f"; ctx.fillRect(x - 30, 391, 27, 5); ctx.fillRect(x - 18, 381, 3, 38);
-    ctx.fillStyle = "#d2aa5f"; ctx.beginPath(); ctx.ellipse(x + 17, 403, 26, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#c55554"; ctx.fillRect(x + 2, 398, 30, 5);
-  } else if (spot.kind === "agency") {
-    const colors = ["#bf6e79", "#5d7e9c", "#d0a45c"];
-    [-28, 0, 28].forEach((offset, i) => { ctx.fillStyle = "#e6d6bd"; ctx.fillRect(x + offset - 12, 319 + i * 7, 24, 48); ctx.fillStyle = colors[i]; ctx.fillRect(x + offset - 8, 325 + i * 7, 16, 19); ctx.fillStyle = "#65525c"; ctx.fillRect(x + offset - 8, 349 + i * 7, 13, 2); ctx.fillRect(x + offset - 8, 355 + i * 7, 16, 2); });
-  }
-  ctx.restore();
 }
 
 function drawWorldIndicator(x, y, key, time, active) {
@@ -1470,12 +1808,68 @@ const visitorWalkFrameRects = {
 function drawNPCs(time) {
   drawTravellerEncounter(time);
   drawMarketVisitor(time);
+  drawQuestLocationActors(time);
   drawRooftopCast(time);
   if (currentScene === "bench" && journey.returning) {
     drawBenchCompanion(time);
     const otherType = player.type === "maltipoo" ? "maltese" : "maltipoo";
     drawDogSprite(ctx, 918, 426, otherType, "sit", "left", 0, 0.78);
   }
+}
+
+const questHelperLayout = {
+  aquarium: { x: 220, height: 158 },
+  pool: { x: 835, height: 160 },
+  cats: { x: 805, height: 158 },
+  bell: { x: 690, height: 158 }
+};
+
+function drawQuestLocationActors(time) {
+  if (!activeQuest || currentScene !== activeQuest.interior || activeQuest.id === "leap") return;
+  const layout = questHelperLayout[activeQuest.id];
+  const rect = visitorSpriteRects[activeQuest.issuer.sprite];
+  if (layout && rect) {
+    const direction = player.x < layout.x ? "left" : "right";
+    drawGroundedQuestVisitor(layout.x, SCENES[currentScene].groundY + 1, rect, direction, time, layout.height);
+  }
+  if (activeQuest.id === "bell") drawBellQuestSprite(time);
+}
+
+function drawGroundedQuestVisitor(x, footY, rect, direction, time, drawHeight) {
+  if (!assets.visitors) return;
+  const drawWidth = drawHeight * (rect.width / rect.height);
+  const breathe = 1 + Math.sin(time / 760 + rect.x) * 0.0025;
+  const gesture = questAction ? Math.sin(questAction.progress * Math.PI * 4) * (1 - questAction.progress) * 0.018 : 0;
+  ctx.save(); ctx.globalAlpha = 0.32; ctx.fillStyle = "#17101f";
+  ctx.beginPath(); ctx.ellipse(x, footY + 1, Math.min(34, drawWidth * 0.34), 5, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(Math.round(x), Math.round(footY));
+  if (direction === "left") ctx.scale(-1, breathe); else ctx.scale(1, breathe);
+  ctx.rotate(gesture);
+  ctx.filter = "saturate(.92) brightness(.96) contrast(1.03)";
+  ctx.drawImage(assets.visitors, rect.x, rect.y, rect.width, rect.height, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
+  ctx.restore();
+}
+
+function drawBellQuestSprite(time) {
+  if (!assets.supportingCast) return;
+  const rect = supportingCastRects.bell;
+  const approach = questVisualProgress(2);
+  const onChairX = 920;
+  const onChairY = 374;
+  const floorX = 825;
+  const floorY = SCENES.bellHome.groundY + 1;
+  const x = onChairX + (floorX - onChairX) * approach;
+  const y = onChairY + (floorY - onChairY) * approach - Math.sin(approach * Math.PI) * 38;
+  const drawHeight = 72;
+  const drawWidth = drawHeight * (rect.width / rect.height);
+  const blink = Math.floor(time / 1150) % 7 === 0 ? 0.985 : 1;
+
+  ctx.save(); ctx.globalAlpha = 0.25; ctx.fillStyle = "#241c27";
+  ctx.beginPath(); ctx.ellipse(x, y + 2, Math.min(25, drawWidth * 0.35), approach > 0.08 && approach < 0.92 ? 3 : 5, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(blink, 1);
+  ctx.filter = "saturate(.92) brightness(.96) contrast(1.04)";
+  ctx.drawImage(assets.supportingCast, rect.x, rect.y, rect.width, rect.height, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
+  ctx.restore();
 }
 
 const supportingCastRects = {
@@ -1499,17 +1893,28 @@ const supportingCastLayout = {
 function drawRooftopCast(time) {
   if (currentScene !== "rooftop" || activeQuest?.id !== "leap") return;
   const footY = SCENES.rooftop.groundY + 1;
-  drawRooftopLeadSprite(780, footY, time);
+  const crossing = questVisualProgress(2);
+  const cast = [
+    { kind: "ted", start: 780, end: 455 },
+    { kind: "marshall", start: 842, end: 400 },
+    { kind: "lily", start: 905, end: 350 },
+    { kind: "robin", start: 952, end: 300 },
+    { kind: "barney", start: 1012, end: 245 }
+  ];
+  const tedProgress = clamp(crossing * 1.75, 0, 1);
+  const tedX = cast[0].start + (cast[0].end - cast[0].start) * tedProgress;
+  if (tedProgress > 0 && tedProgress < 1 && assets.visitorWalk) {
+    drawVisitorWalkSprite(tedX, footY, "ted", Math.floor(time / 120) % 4, "left");
+  } else drawRooftopLeadSprite(tedX, footY, time, tedProgress >= 1 ? "right" : "right");
   if (!assets.supportingCast) return;
-  [
-    ["marshall", 842],
-    ["lily", 905],
-    ["robin", 952],
-    ["barney", 1012]
-  ].forEach(([kind, x], index) => drawSupportingSprite(x, footY, kind, time, index));
+  cast.slice(1).forEach((actor, index) => {
+    const actorProgress = clamp(crossing * 1.75 - (index + 1) * 0.18, 0, 1);
+    const x = actor.start + (actor.end - actor.start) * actorProgress;
+    drawSupportingSprite(x, footY, actor.kind, time, index, actorProgress > 0 && actorProgress < 1 ? actorProgress : null);
+  });
 }
 
-function drawRooftopLeadSprite(x, footY, time) {
+function drawRooftopLeadSprite(x, footY, time, direction = "right") {
   const rect = visitorSpriteRects.ted;
   if (!assets.visitors || !rect) return;
   const drawHeight = 158;
@@ -1526,7 +1931,7 @@ function drawRooftopLeadSprite(x, footY, time) {
 
   ctx.save();
   ctx.translate(Math.round(x), Math.round(footY));
-  ctx.scale(1, breathe);
+  ctx.scale(direction === "left" ? -1 : 1, breathe);
   ctx.filter = "saturate(.9) brightness(.94) contrast(1.04)";
   ctx.drawImage(
     assets.visitors,
@@ -1536,7 +1941,7 @@ function drawRooftopLeadSprite(x, footY, time) {
   ctx.restore();
 }
 
-function drawSupportingSprite(x, footY, kind, time, offset = 0) {
+function drawSupportingSprite(x, footY, kind, time, offset = 0, walkProgress = null) {
   const rect = supportingCastRects[kind];
   const layout = supportingCastLayout[kind];
   if (!rect || !layout) return;
@@ -1544,6 +1949,8 @@ function drawSupportingSprite(x, footY, kind, time, offset = 0) {
   const drawWidth = drawHeight * (rect.width / rect.height);
   const groundedY = footY + layout.footOffset;
   const breathe = 1 + Math.sin(time / 720 + offset * 1.3) * 0.0025;
+  const step = walkProgress === null ? 0 : Math.abs(Math.sin(walkProgress * Math.PI * 12)) * -3;
+  const lean = walkProgress === null ? 0 : Math.sin(walkProgress * Math.PI * 12) * 0.025;
 
   ctx.save();
   ctx.globalAlpha = 0.34;
@@ -1554,7 +1961,8 @@ function drawSupportingSprite(x, footY, kind, time, offset = 0) {
   ctx.restore();
 
   ctx.save();
-  ctx.translate(Math.round(x), Math.round(groundedY));
+  ctx.translate(Math.round(x), Math.round(groundedY + step));
+  ctx.rotate(lean);
   ctx.scale(1, breathe);
   ctx.filter = "saturate(.9) brightness(.94) contrast(1.04)";
   ctx.drawImage(
@@ -1719,12 +2127,19 @@ function drawVisitorSprite(x, footY, rect, direction, time, alpha = 1) {
 }
 
 function drawCarriedFlower(x, y, direction, flower, time) {
-  const side = direction === "right" ? 1 : -1; const sway = Math.sin(time / 300) * 2;
-  ctx.save(); ctx.translate(x + side * 51, y - 56 + sway); if (side < 0) ctx.scale(-1, 1);
-  ctx.strokeStyle = "#64865f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-18, 12); ctx.lineTo(1, 0); ctx.stroke();
+  const side = direction === "right" ? 1 : -1;
+  const sway = Math.round(Math.sin(time / 300) * 2);
+  ctx.save(); ctx.translate(Math.round(x + side * 51), Math.round(y - 56 + sway)); if (side < 0) ctx.scale(-1, 1);
+  ctx.fillStyle = "#486c50";
+  for (let index = 0; index < 9; index += 1) ctx.fillRect(-18 + index * 2, 12 - index, 3, 2);
+  ctx.fillStyle = "#769363"; ctx.fillRect(-11, 7, 6, 2); ctx.fillRect(-9, 4, 2, 5);
+  ctx.fillStyle = "#3b3242";
+  [[-7,-3],[3,-7],[8,1],[2,8],[-8,6],[-11,0]].forEach(([px, py]) => ctx.fillRect(px - 3, py - 3, 7, 7));
   ctx.fillStyle = flower.color;
-  for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ctx.beginPath(); ctx.arc(Math.cos(a) * 7, Math.sin(a) * 7, 5, 0, Math.PI * 2); ctx.fill(); }
-  ctx.fillStyle = "#f0c66d"; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  [[-7,-3],[3,-7],[8,1],[2,8],[-8,6],[-11,0]].forEach(([px, py]) => ctx.fillRect(px - 2, py - 2, 5, 5));
+  ctx.fillStyle = "#f0c66d"; ctx.fillRect(-2, -2, 5, 5);
+  ctx.fillStyle = "#fff0bd"; ctx.fillRect(-1, -1, 2, 2);
+  ctx.restore();
 }
 
 function dogSceneFilter() {
@@ -1815,17 +2230,19 @@ function drawSprintTrail(target, x, y, direction, frame, scale) {
   const side = direction === "right" ? -1 : 1;
   const pulse = Math.abs(Math.sin(frame * Math.PI));
   target.save();
-  target.strokeStyle = "rgba(236, 214, 178, .24)"; target.lineWidth = 2 * scale;
+  target.fillStyle = "rgba(236, 214, 178, .18)";
   for (let i = 0; i < 3; i++) {
-    const trailX = x + side * (47 + i * 14 + pulse * 5) * scale;
-    const trailY = y - (25 + i * 10) * scale;
-    target.beginPath(); target.moveTo(trailX, trailY); target.lineTo(trailX + side * 12 * scale, trailY); target.stroke();
+    const trailX = Math.round(x + side * (47 + i * 14 + pulse * 5) * scale);
+    const trailY = Math.round(y - (25 + i * 10) * scale);
+    target.fillRect(trailX, trailY, Math.round(side * 9 * scale) || side, Math.max(1, Math.round(scale)));
+    target.fillRect(trailX + side * 12 * scale, trailY + 2 * scale, Math.round(side * 4 * scale) || side, Math.max(1, Math.round(scale)));
   }
-  target.fillStyle = "rgba(214, 180, 142, .28)";
+  target.fillStyle = "rgba(168, 139, 111, .22)";
   for (let i = 0; i < 3; i++) {
-    const dustX = x + side * (35 + i * 13 + pulse * 7) * scale;
-    const dustY = y - (4 + (i % 2) * 4) * scale;
-    target.beginPath(); target.arc(dustX, dustY, (3 - i * 0.55) * scale, 0, Math.PI * 2); target.fill();
+    const dustX = Math.round(x + side * (35 + i * 13 + pulse * 7) * scale);
+    const dustY = Math.round(y - (4 + (i % 2) * 4) * scale);
+    const size = Math.max(1, Math.round((2.2 - i * 0.4) * scale));
+    target.fillRect(dustX, dustY, size, size);
   }
   target.restore();
 }
