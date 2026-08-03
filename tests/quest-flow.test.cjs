@@ -22,9 +22,12 @@ class FakeElement {
     this.hidden = false;
     this.style = {};
     this.dataset = {};
+    this.listeners = {};
     this.classList = { add() {}, remove() {}, contains() { return false; } };
   }
-  addEventListener() {}
+  addEventListener(type, callback) { (this.listeners[type] ||= []).push(callback); }
+  click() { for (const callback of this.listeners.click || []) callback({ preventDefault() {} }); }
+  focus() {}
   appendChild() {}
   setAttribute() {}
   getContext() { return drawingContext; }
@@ -41,12 +44,22 @@ const elements = new Map();
 const dogButtons = [new FakeElement(), new FakeElement()];
 dogButtons[0].dataset.dog = "maltipoo";
 dogButtons[1].dataset.dog = "maltese";
+const checkpointButtons = ["market", "aquarium", "pool", "cats", "bell", "cinema", "leap", "final", "ending"]
+  .map((checkpoint) => {
+    const button = new FakeElement();
+    button.dataset.checkpoint = checkpoint;
+    return button;
+  });
 const document = {
   querySelector(selector) {
     if (!elements.has(selector)) elements.set(selector, new FakeElement());
     return elements.get(selector);
   },
-  querySelectorAll(selector) { return selector === "[data-dog]" ? dogButtons : []; },
+  querySelectorAll(selector) {
+    if (selector === "[data-dog]") return dogButtons;
+    if (selector === "[data-checkpoint]") return checkpointButtons;
+    return [];
+  },
   createElement() { return new FakeElement(); }
 };
 
@@ -82,6 +95,33 @@ const questSummary = vm.runInContext(`questDefinitions.map((quest) => ({
     text: step.lines().map((entry) => entry.text).join(" ")
   }))
 }))`, sandbox);
+const bellDialogue = vm.runInContext(`(() => {
+  const quest = questDefinitions.find((candidate) => candidate.id === "bell");
+  return [
+    ...quest.trigger(flowers[0]),
+    ...quest.arrival(),
+    ...quest.steps.flatMap((step) => step.lines()),
+    ...quest.solved()
+  ].map((entry) => entry.text).join(" ");
+})()`, sandbox);
+const leapDialogue = vm.runInContext(`(() => {
+  const quest = questDefinitions.find((candidate) => candidate.id === "leap");
+  return [
+    ...quest.trigger(flowers[0]),
+    ...quest.arrival(),
+    ...quest.steps.flatMap((step) => step.lines()),
+    ...quest.solved()
+  ].map((entry) => entry.text).join(" ");
+})()`, sandbox);
+const poolDialogue = vm.runInContext(`(() => {
+  const quest = questDefinitions.find((candidate) => candidate.id === "pool");
+  return [
+    ...quest.trigger(flowers[0]),
+    ...quest.arrival(),
+    ...quest.steps.flatMap((step) => step.lines()),
+    ...quest.solved()
+  ].map((entry) => entry.text).join(" ");
+})()`, sandbox);
 const sceneSummary = vm.runInContext(`Object.fromEntries(Object.entries(SCENES).map(([id, config]) => [id, {
   asset: config.asset,
   doors: (config.doors || []).map((door) => ({ target: door.target, quest: door.quest || null }))
@@ -95,6 +135,14 @@ assert.doesNotMatch(
   /Some evenings ended here slowly|Some memories leave|habit of complicating simple errands|Some plans change|every interruption become/,
   "the dialogue pass should not restore the old self-consciously philosophical narration"
 );
+assert.match(bellDialogue, /\bhe\b|\bhim\b|\bhis\b/i, "Bell should be referred to with male pronouns");
+assert.doesNotMatch(bellDialogue, /\bshe\b|\bher\b|\bhers\b/i, "Bell's dialogue should not use female pronouns");
+assert.match(leapDialogue, /hot tub/i, "the rooftop should visibly and narratively reference the neighboring hot-tub patio");
+assert.match(leapDialogue, /Marshall runs first/i, "Marshall should lead the recognizable one-by-one rooftop leap");
+assert.doesNotMatch(leapDialogue, /cushion|landing pad|signal lamp/i, "the rebuilt rooftop should not restore the invented cushion-and-signal-lamp version");
+assert.match(poolDialogue, /missing 8-ball|8-ball vanished/i, "the pool obstacle should be a clear missing 8-ball search");
+assert.match(poolDialogue, /tray|track|beneath the chair|rolls out|nudge/i, "the pool search should have physical clues, discovery and return beats");
+assert.doesNotMatch(poolDialogue, /guard|protect the hanging lamp|one safe shot/i, "the old lamp-guard obstacle should be fully removed");
 const dogVoiceComparison = vm.runInContext(`(() => {
   player.type = "maltipoo"; player.name = "Momo";
   const momo = [memorySpots[1].lines().at(-1).text, questDefinitions[1].trigger(flowers[0]).find((entry) => entry.portrait === "player").text];
@@ -112,6 +160,10 @@ assert.match(stylesheet, /\.dialogue__body>p\{[^}]*text-shadow:\.35px 0 0/, "dia
 assert.match(stylesheet, /\.dialogue-choices button\{[^}]*font-size:12px[^}]*font-weight:500/, "emotional choices should use the heavier dialogue type scale");
 assert.doesNotMatch(stylesheet, /font-size:(?:6|7)px|clamp\((?:6|7)px/, "functional interface text should not fall back to squint-sized type");
 assert.match(stylesheet, /\.quest-card strong\{[^}]*clamp\(13px,1\.6vw,19px\)/, "the current objective should remain readable over detailed backgrounds");
+assert.equal((markup.match(/data-checkpoint=/g) || []).length, 9, "the title menu should expose all nine scene checkpoints");
+for (const label of ["Flower Market", "Aquarium", "Pool Hall", "Cat Cafe", "Bell's Home", "Cinema", "The Leap", "Final Flower", "Ending Bench"]) {
+  assert.match(markup, new RegExp(`>${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}<`), `the checkpoint menu should include ${label}`);
+}
 
 vm.runInContext(`state = "select"; menuIndex = 0;`, sandbox);
 vm.runInContext(`handleMenuKeydown({ key: "ArrowRight", repeat: false, preventDefault() {} });`, sandbox);
@@ -119,10 +171,56 @@ assert.equal(vm.runInContext("menuIndex", sandbox), 1, "right arrow should selec
 vm.runInContext(`handleMenuKeydown({ key: "ArrowLeft", repeat: false, preventDefault() {} });`, sandbox);
 assert.equal(vm.runInContext("menuIndex", sandbox), 0, "left arrow should select the previous menu option");
 
-assert.equal(questSummary.length, 5, "the game should have five obstacle quests");
+vm.runInContext(`state = "title"; menuIndex = 0; audioMuted = true;`, sandbox);
+vm.runInContext(`handleMenuKeydown({ key: "ArrowDown", repeat: false, preventDefault() {} });`, sandbox);
+assert.equal(vm.runInContext("menuIndex", sandbox), 1, "down from Begin should select the first scene checkpoint");
+vm.runInContext(`handleMenuKeydown({ key: "Enter", repeat: false, preventDefault() {} });`, sandbox);
+assert.equal(vm.runInContext("currentScene", sandbox), "market", "the first keyboard checkpoint should open the flower market");
+assert.equal(vm.runInContext("state", sandbox), "playing", "a checkpoint should enter playable state immediately");
+
+vm.runInContext(`jumpToCheckpoint("cinema");`, sandbox);
+assert.deepEqual(
+  JSON.parse(vm.runInContext(`JSON.stringify({ scene: currentScene, quest: activeQuest.id, stage: activeQuest.stage, step: activeQuest.step, resolved: scene.resolved, dog: player.type })`, sandbox)),
+  { scene: "cinemaInside", quest: "cinema", stage: "solve", step: 0, resolved: 4, dog: "maltipoo" },
+  "a mission checkpoint should restore its interior, NPC quest and preceding sell-outs"
+);
+vm.runInContext(`jumpToCheckpoint("final");`, sandbox);
+assert.equal(vm.runInContext(`flowers.filter((flower) => flower.active).length`, sandbox), 1, "the final-flower checkpoint should leave exactly one bloom");
+assert.equal(vm.runInContext(`scene.resolved`, sandbox), 6, "the final-flower checkpoint should mark all six obstacles resolved");
+vm.runInContext(`jumpToCheckpoint("ending");`, sandbox);
+assert.deepEqual(
+  JSON.parse(vm.runInContext(`JSON.stringify({ scene: currentScene, returning: journey.returning, flower: endingFlower.id, activeFlowers: flowers.filter((flower) => flower.active).length })`, sandbox)),
+  { scene: "bench", returning: true, flower: "jasmine", activeFlowers: 0 },
+  "the ending checkpoint should place Momo at the bench carrying the final flower"
+);
+vm.runInContext(`resetGame(); audioContext = null; audioMuted = false;`, sandbox);
+
+vm.runInContext(`
+  state = "playing"; currentScene = "catStories"; player.x = SCENES.catStories.maxX; keys.right = true;
+  checkJourneyTransitions();
+`, sandbox);
+assert.equal(vm.runInContext("currentScene", sandbox), "cinemaStreet", "the evening route should pass the cinema before the market");
+vm.runInContext(`
+  state = "playing"; player.x = SCENES.cinemaStreet.maxX; keys.right = true;
+  checkJourneyTransitions();
+`, sandbox);
+assert.equal(vm.runInContext("currentScene", sandbox), "entrance", "the cinema street should connect forward to the market entrance");
+vm.runInContext(`
+  state = "playing"; player.x = SCENES.entrance.minX; keys.right = false; keys.left = true;
+  checkJourneyTransitions(); keys.left = false;
+`, sandbox);
+assert.equal(vm.runInContext("currentScene", sandbox), "cinemaStreet", "the market route should remain reversible through the cinema street");
+
+assert.equal(questSummary.length, 6, "the game should have six obstacle quests");
+assert.equal(vm.runInContext("TOTAL_QUESTS", sandbox), questSummary.length, "the declared obstacle count should match the quest list");
+assert.equal(vm.runInContext("flowers.length", sandbox), 7, "six detours should still leave one final flower");
 for (const quest of questSummary) {
   assert.equal(quest.steps.length, 3, `${quest.id} should have three interactions`);
   assert.ok(quest.steps.every((x, index) => index === 0 || x > quest.steps[index - 1]), `${quest.id} steps should run left to right`);
+  assert.ok(
+    quest.steps.every((x) => vm.runInContext(`SCENES.${quest.interior}.minX <= ${x} && ${x} <= SCENES.${quest.interior}.maxX`, sandbox)),
+    `${quest.id} interactions should all remain inside the playable interior bounds`
+  );
   assert.ok(sceneSummary[quest.exterior].doors.some((door) => door.target === quest.interior && door.quest === quest.id), `${quest.id} needs an exterior entrance`);
   assert.ok(sceneSummary[quest.interior].doors.some((door) => door.target === quest.exterior), `${quest.id} needs an interior exit`);
   assert.ok(quest.issuer?.name && quest.issuer?.portrait && quest.issuer?.sprite, `${quest.id} needs a visible market visitor`);
@@ -134,7 +232,7 @@ for (const quest of questSummary) {
   assert.match(quest.arrivalText, /start/i, `${quest.id} arrival dialogue should state the first action`);
   for (const [stepIndex, guidance] of quest.stepGuidance.entries()) {
     assert.ok(guidance.speakers.includes(quest.issuer.name), `${quest.id} step ${stepIndex + 1} should have the visitor direct the next action`);
-    assert.match(guidance.text, /check|secure|set up|move|ring|bring|sit|carry|switch/i, `${quest.id} step ${stepIndex + 1} should clearly cue what comes next`);
+    assert.match(guidance.text, /check|secure|set up|move|ring|bring|sit|carry|switch|turn|repeat|press|light|inspect|search|nudge|return|signal/i, `${quest.id} step ${stepIndex + 1} should clearly cue what comes next`);
   }
   assert.ok(quest.closureSpeakers.includes(quest.issuer.name), `${quest.id} visitor should close their obstacle at its location`);
   assert.match(quest.closureText, /stay|finish|pack/i, `${quest.id} closure should establish that the visitor remains behind`);
@@ -144,19 +242,77 @@ for (const quest of questSummary) {
   assert.ok(quest.sellout?.tag && quest.sellout?.accent && Number.isFinite(quest.sellout?.tilt), `${quest.id} needs a visible sell-out treatment`);
   assert.match(quest.marketReturnText, /last|closing|paid for/i, `${quest.id} return should establish that the flower sold while the dog was away`);
 }
-assert.equal(new Set(questSummary.map((quest) => quest.issuer.sprite)).size, 5, "each obstacle should have a distinct visitor sprite");
-assert.equal(new Set(questSummary.map((quest) => quest.sellout.tag)).size, 5, "each sold flower should receive a distinct market tag");
+assert.equal(new Set(questSummary.map((quest) => quest.issuer.sprite)).size, 6, "each obstacle should have a distinct visitor sprite");
+assert.equal(new Set(questSummary.map((quest) => quest.sellout.tag)).size, 6, "each sold flower should receive a distinct market tag");
 for (const quest of questSummary) {
   vm.runInContext(`activeQuest = questDefinitions.find((candidate) => candidate.id === "${quest.id}"); activeQuest.stage = "travel"; updateHUD();`, sandbox);
   assert.equal(vm.runInContext("ui.quest.textContent", sandbox), quest.travelObjective, `${quest.id} HUD should repeat the visitor's request`);
 }
 vm.runInContext("activeQuest = null", sandbox);
 assert.equal(vm.runInContext("SCENES.entrance.groundY", sandbox), 452, "the market entrance baseline should place paws on the pavement edge, not the curb face");
-assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 720, "the pool table should block the one-dimensional walk line");
+assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 560, "the pool player and table should block the dog's complete visible footprint, not only its centre");
 assert.ok(
   vm.runInContext(`questDefinitions.find((quest) => quest.id === "pool").steps.at(-1).x <= SCENES.poolInside.maxX`, sandbox),
   "the last pool interaction should remain reachable from the table's near corner"
 );
+const poolLayoutSummary = vm.runInContext(`({
+  tableLeft: POOL_LAYOUT.table.left,
+  surface: { ...POOL_LAYOUT.table.surface },
+  playerMaxX: POOL_LAYOUT.playerMaxX,
+  helperX: POOL_LAYOUT.helper.x,
+  helperHeight: POOL_LAYOUT.helper.height,
+  missingBall: { ...POOL_LAYOUT.missingBall },
+  interactions: { ...POOL_LAYOUT.interactions }
+})`, sandbox);
+const widestPoolRunHalfWidth = vm.runInContext(`Math.max(
+  ...dogMasterFrameRects.maltipoo.run.map((rect) => 85 * (rect.width / rect.height) / 2),
+  ...dogMasterFrameRects.maltese.run.map((rect) => 85 * (rect.width / rect.height) / 2)
+)`, sandbox);
+assert.ok(
+  poolLayoutSummary.playerMaxX + widestPoolRunHalfWidth < poolLayoutSummary.tableLeft,
+  "even the widest sprint frame should remain visibly clear of the pool table"
+);
+assert.ok(
+  poolLayoutSummary.helperX > poolLayoutSummary.playerMaxX && poolLayoutSummary.helperX < poolLayoutSummary.tableLeft,
+  "the pool player should stand naturally between the dog boundary and the table apron"
+);
+assert.ok(poolLayoutSummary.helperHeight >= 190, "the pool player should be clearly human-sized beside the playable dog");
+const poolHelperLeft = vm.runInContext(`POOL_LAYOUT.helper.x - (POOL_LAYOUT.helper.height * visitorSpriteRects.poolplayer.width / visitorSpriteRects.poolplayer.height) / 2`, sandbox);
+assert.ok(
+  poolLayoutSummary.playerMaxX + widestPoolRunHalfWidth < poolHelperLeft,
+  "the dog should stop before its widest sprint frame can overlap the enlarged pool player"
+);
+assert.ok(
+  Object.values(poolLayoutSummary.interactions).every((x) => x <= poolLayoutSummary.playerMaxX),
+  "every pool interaction anchor should remain reachable without entering the table"
+);
+assert.ok(
+  poolLayoutSummary.missingBall.hidingX < poolLayoutSummary.missingBall.foundX &&
+    poolLayoutSummary.missingBall.foundX < poolLayoutSummary.missingBall.returnX,
+  "the missing 8-ball should visibly progress from hiding place to dog to pool player"
+);
+assert.ok(
+  poolLayoutSummary.missingBall.rackX >= poolLayoutSummary.surface.x &&
+    poolLayoutSummary.missingBall.rackX <= poolLayoutSummary.surface.x + poolLayoutSummary.surface.width &&
+    poolLayoutSummary.missingBall.rackY >= poolLayoutSummary.surface.y &&
+    poolLayoutSummary.missingBall.rackY <= poolLayoutSummary.surface.y + poolLayoutSummary.surface.height,
+  "the returned 8-ball should finish inside the authored felt surface"
+);
+assert.doesNotMatch(gameSource, /drawCueSafetyTag|drawCueMeasureTicks|drawPocketTicks/, "the obsolete safe-shot effects should not return");
+assert.doesNotMatch(gameSource, /qaPool|qaScene|qaBell|applyLocalVisualQA/, "temporary visual QA controls must not ship in the production build");
+
+const bellHomeLayout = vm.runInContext(`({
+  helperHeight: BELL_HOME_LAYOUT.helper.height,
+  bellHeight: BELL_HOME_LAYOUT.bell.height,
+  chairY: BELL_HOME_LAYOUT.bell.chairY,
+  floorY: BELL_HOME_LAYOUT.bell.floorY,
+  playerGroundY: SCENES.bellHome.groundY
+})`, sandbox);
+assert.ok(bellHomeLayout.helperHeight >= 190, "Bell's caretaker should read at adult scale in the closer room perspective");
+assert.ok(bellHomeLayout.helperHeight > 93 * 2, "Bell's caretaker should be clearly taller than the playable dog");
+assert.ok(bellHomeLayout.bellHeight < 93, "Bell should remain smaller than the playable dog");
+assert.ok(bellHomeLayout.chairY < bellHomeLayout.floorY, "Bell's chair pose should begin above the floor landing");
+assert.equal(bellHomeLayout.floorY, bellHomeLayout.playerGroundY + 1, "Bell's landing paws should share the room floor line");
 
 const poolWalkFrames = vm.runInContext(`visitorWalkFrameRects.poolplayer.map(({ y, height }) => ({ y, height }))`, sandbox);
 assert.ok(poolWalkFrames.every(({ y, height }) => y + height <= 456), "pool-player walk crops must end at his shoes and exclude the next row's heads");
@@ -199,12 +355,12 @@ assert.ok(sprintingDistance > walkingDistance * 1.5, "sprinting should be materi
 assert.equal(vm.runInContext("player.pose", sandbox), "run", "sprinting should use the run pose");
 vm.runInContext(`
   currentScene = "poolInside";
-  player.x = 710;
+  player.x = 550;
   keys.right = true;
   keys.sprint = true;
   update(0.2, 250);
 `, sandbox);
-assert.equal(vm.runInContext("player.x", sandbox), 720, "the dog should stop at the pool table instead of crossing through it");
+assert.equal(vm.runInContext("player.x", sandbox), 560, "the dog's complete sprint silhouette should stop before the pool player and table");
 assert.doesNotThrow(() => vm.runInContext(`
   assets.dogMaltipoo = { width: 1536, height: 1024 };
   assets.dogMaltese = { width: 1536, height: 1024 };
@@ -239,21 +395,29 @@ assert.equal(assetSummary.visitors, "assets/character-visitors-authored-v2.png",
 assert.equal(assetSummary.visitorWalk, "assets/character-visitors-walk-v2.png", "market visitors should use restrained walk cycles");
 assert.equal(assetSummary.traveller, "assets/character-traveller-authored-v2.png", "the traveller should use the restrained low-resolution character bible");
 assert.equal(assetSummary.benchCompanion, "assets/character-companion-authored-v2.png", "the ending companion should use the restrained low-resolution character atlas");
-assert.equal(assetSummary.supportingCast, "assets/character-supporting-cast-v2.png", "the rooftop cast and Bell should use the restrained supporting-character atlas");
-assert.equal(assetSummary.questEffects, "assets/quest-effects-atlas-v1.png", "quest actions should share one authored pixel-art effects atlas");
-assert.equal(assetSummary.bellHome, "assets/interior-bell-home-benchmark-v3.png", "Bell's room should use the empty-chair layered revision with the Norwegian flag");
+assert.equal(assetSummary.supportingCast, "assets/character-supporting-cast-v2.png", "the rooftop cast and Bell's portraits should use the restrained supporting-character atlas");
+assert.equal(assetSummary.bellJump, "assets/character-bell-jump-v1.png", "Bell's chair jump should use a dedicated multi-pose animation atlas");
+assert.equal(assetSummary.rooftopJumps, "assets/character-rooftop-jumps-v1.png", "the rooftop cast should use dedicated airborne poses instead of sliding standing sprites");
+assert.equal(assetSummary.rooftopCart, "assets/rooftop-market-cart-v1.png", "the rooftop run-up should contain an authored movable market cart");
+assert.equal(assetSummary.cinemaProjection, "assets/cinema-projection-hail-mary-v1.png", "the cinema should use an authored diegetic space projection");
+assert.equal(assetSummary.projectionist, "assets/character-projectionist-v1.png", "the cinema should use its authored projectionist atlas");
+assert.equal(assetSummary.cafeCats, "assets/character-cafe-cats-v1.png", "the cat cafe should use three authored quest cats");
+assert.equal(assetSummary.questEffects, "assets/quest-effects-atlas-v2.png", "quest actions should use the cleaned authored pixel-art effects atlas");
+assert.equal(assetSummary.bellHome, "assets/interior-bell-home-benchmark-v5.png", "Bell's room should use the human-scale Norwegian-flag interior");
 assert.equal("portraits" in assetSummary, false, "portraits should be cropped from the same world-character artwork instead of a mismatched atlas");
 const benchmarkBackgrounds = {
   aquarium: "assets/exterior-aquarium-benchmark-v1.png",
   dateNight: "assets/exterior-date-night-benchmark-v1.png",
   catStories: "assets/exterior-cat-stories-benchmark-v1.png",
+  cinemaStreet: "assets/exterior-cinema-benchmark-v1.png",
   entrance: "assets/market-entrance-benchmark-v1.png",
-  market: "assets/market-interior-benchmark-v1.png",
-  aquariumInside: "assets/interior-aquarium-benchmark-v3.png",
-  poolInside: "assets/interior-pool-benchmark-v2.png",
-  catInside: "assets/interior-cat-cafe-benchmark-v2.png",
-  bellHome: "assets/interior-bell-home-benchmark-v3.png",
-  rooftop: "assets/rooftop-benchmark-v1.png"
+  market: "assets/market-interior-benchmark-v2.png",
+  aquariumInside: "assets/interior-aquarium-benchmark-v4.png",
+  poolInside: "assets/interior-pool-benchmark-v5.png",
+  catInside: "assets/interior-cat-cafe-benchmark-v3.png",
+  bellHome: "assets/interior-bell-home-benchmark-v5.png",
+  rooftop: "assets/rooftop-benchmark-v5.png",
+  cinemaInside: "assets/interior-cinema-benchmark-v2.png"
 };
 for (const [asset, source] of Object.entries(benchmarkBackgrounds)) {
   assert.equal(assetSummary[asset], source, `${asset} should use its restrained benchmark background`);
@@ -266,12 +430,22 @@ assert.doesNotMatch(
 assert.doesNotMatch(
   gameSource,
   /fillRect\(500,\s*402,\s*width,\s*25\)/,
-  "the rooftop landing should use grounded cushions instead of a flat rectangular platform"
+  "the rooftop gap should remain part of the authored environment instead of a flat rectangular platform"
 );
 assert.match(gameSource, /function drawQuestEffectSprite\(/, "quest props should render from the authored effects atlas");
 assert.match(gameSource, /withWorldClip\(aquariumTankWindows\.deep/, "the discovered shark should remain clipped inside the deep tank");
 assert.match(gameSource, /withWorldClip\(aquariumTankWindows\.reef/, "the tropical fish should remain clipped inside the reef tank");
-assert.match(gameSource, /drawQuestEffectSprite\("guard"/, "the pool lamp guard should use the authored pixel-art treatment");
+assert.match(gameSource, /function drawPoolSearchTrail\(/, "the missing ball should leave a restrained floor-level search trail");
+assert.match(gameSource, /function drawMissingEightBall\(/, "the discovered 8-ball should have a dedicated readable foreground sprite");
+assert.match(gameSource, /drawPoolBall\(ball\.rackX, ball\.rackY[^\n]*true/, "the recovered 8-ball should visibly return to the rack");
+assert.doesNotMatch(gameSource, /drawQuestEffectSprite\("guard"/, "the removed lamp-guard objective should not leave visual effects behind");
+assert.match(gameSource, /function drawCinemaQuestVisuals\(/, "the cinema should have scene-native mission choreography");
+assert.match(gameSource, /function drawCinemaProjection\(/, "the final cinema picture should render from an authored projected image");
+assert.doesNotMatch(gameSource, /function drawCinemaSignal\(|function drawCinemaTestFrame\(/, "the cinema should not rebuild its screen from UI-like primitive rectangles");
+const cinemaLayout = vm.runInContext(`({ screen: { ...CINEMA_LAYOUT.screen }, aisleLights: [...CINEMA_LAYOUT.aisleLights] })`, sandbox);
+assert.ok(cinemaLayout.screen.width > cinemaLayout.screen.height, "the cinema screen must read as landscape rather than a portrait UI panel");
+assert.ok(cinemaLayout.aisleLights.every((x, index) => index === 0 || x > cinemaLayout.aisleLights[index - 1]), "cinema aisle lights should progress toward the right-facing screen");
+assert.match(gameSource, /function drawCafeCatSprite\(/, "the cat cafe should animate authored cats instead of relying on dialogue alone");
 assert.doesNotMatch(gameSource, /function drawSharkSilhouette\(/, "the aquarium should not fall back to a flat polygon shark");
 assert.doesNotMatch(gameSource, /function drawPoolLampGuard\(/, "the pool hall should not fall back to programmer-drawn lamp geometry");
 const questEffectSummary = vm.runInContext(`Object.fromEntries(Object.entries(questEffectRects).map(([kind, rect]) => [kind, ({ ...rect })]))`, sandbox);
@@ -280,10 +454,24 @@ assert.deepEqual(
   ["ball", "bell", "bowls", "cushions", "fish", "guard", "mouse", "shark"],
   "all eight recurring quest effects should come from the cohesive atlas"
 );
+const cafeCatSummary = vm.runInContext(`({
+  eating: cafeCatRects.eating.map((rect) => ({ ...rect })),
+  walking: cafeCatRects.walking.map((rect) => ({ ...rect }))
+})`, sandbox);
+assert.equal(cafeCatSummary.eating.length, 3, "all three cafe cats should have a feeding pose");
+assert.equal(cafeCatSummary.walking.length, 3, "all three cafe cats should have a movement pose");
+const projectionistFrames = vm.runInContext(`projectionistWalkFrameRects.map((rect) => ({ ...rect }))`, sandbox);
+assert.equal(projectionistFrames.length, 4, "the projectionist should use a four-phase walk cycle");
+for (let index = 1; index < projectionistFrames.length; index += 1) {
+  assert.ok(
+    projectionistFrames[index - 1].x + projectionistFrames[index - 1].width < projectionistFrames[index].x,
+    "projectionist walk crops should not capture pixels from adjacent frames"
+  );
+}
 const reefWindow = vm.runInContext(`({ ...aquariumTankWindows.reef })`, sandbox);
 const fishStartWidth = 42 * (questEffectSummary.fish.width / questEffectSummary.fish.height);
-assert.ok(218 - fishStartWidth / 2 >= reefWindow.x, "the animated fish school should begin fully inside the reef tank glass");
-assert.ok(218 + fishStartWidth / 2 <= reefWindow.x + reefWindow.width, "the animated fish school should not clip through the reef tank's right edge");
+assert.ok(208 - fishStartWidth / 2 >= reefWindow.x, "the animated fish school should begin fully inside the reef tank glass");
+assert.ok(257 + fishStartWidth / 2 <= reefWindow.x + reefWindow.width, "the animated fish school should not clip through the reef tank's right edge");
 assert.doesNotThrow(() => vm.runInContext(`
   for (const config of Object.values(SCENES)) assets[config.asset] = { width: 1672, height: 941 };
   for (const sceneId of Object.keys(SCENES)) {
@@ -357,20 +545,117 @@ assert.doesNotThrow(() => vm.runInContext(`
 assert.doesNotThrow(() => vm.runInContext(`
   assets.visitors = { width: 1536, height: 1024 };
   assets.supportingCast = { width: 1774, height: 887 };
+  assets.rooftopJumps = { width: 1983, height: 793 };
+  assets.rooftopCart = { width: 1536, height: 1024 };
+  assets.bellJump = { width: 1983, height: 793 };
   currentScene = "rooftop";
   activeQuest = questDefinitions.find((quest) => quest.id === "leap");
   activeQuest.stage = "solve";
   drawNPCs(1200);
   for (const kind of ["marshall", "lily", "robin", "barney", "bell", "narrator"]) drawPortrait(kind);
 `, sandbox), "the rooftop cast, Bell, and narrator portraits should render from the unified character system");
-const rooftopCastLayout = vm.runInContext(`Object.fromEntries(Object.entries(supportingCastLayout).map(([kind, layout]) => [kind, ({ ...layout })]))`, sandbox);
+const rooftopLayoutSummary = JSON.parse(vm.runInContext(`JSON.stringify({
+  playerMaxX: ROOFTOP_LAYOUT.playerMaxX,
+  castFootY: ROOFTOP_LAYOUT.castFootY,
+  cartFootY: ROOFTOP_LAYOUT.runUpCart.footY,
+  gap: ROOFTOP_LAYOUT.gap,
+  jump: ROOFTOP_LAYOUT.jump,
+  interactions: ROOFTOP_LAYOUT.interactions,
+  cast: rooftopCastPlan
+})`, sandbox));
+assert.equal(vm.runInContext("SCENES.rooftop.maxX", sandbox), rooftopLayoutSummary.playerMaxX, "rooftop collision should stop the dog on the near roof");
+assert.equal(vm.runInContext("SCENES.rooftop.groundY", sandbox), rooftopLayoutSummary.castFootY, "the dog and rooftop cast should share one paving baseline");
+assert.equal(rooftopLayoutSummary.cartFootY, rooftopLayoutSummary.castFootY, "the cart wheels and character feet should share one paving baseline");
+assert.equal(vm.runInContext("SCENES.rooftop.backgroundMode", sandbox), "width", "the rooftop should preserve its authored horizontal ledge coordinates");
+assert.equal(vm.runInContext("SCENES.rooftop.backgroundY", sandbox), 40, "the rooftop background should align its paving surface to the gameplay baseline");
+assert.ok(rooftopLayoutSummary.gap.rightEdge - rooftopLayoutSummary.gap.leftEdge >= 140, "the two rooftops should have a substantial visible gap");
 assert.ok(
-  Object.values(rooftopCastLayout).every(({ height, footOffset }) => height >= 150 && footOffset >= 1),
-  "every rooftop guest should be clearly taller than the 93px idle dog and anchored at the paving line"
+  rooftopLayoutSummary.playerMaxX + widestPoolRunHalfWidth < rooftopLayoutSummary.gap.leftEdge,
+  "the dog's widest sprint silhouette should remain completely clear of the rooftop edge"
+);
+assert.ok(
+  Object.values(rooftopLayoutSummary.interactions).every((x) => x <= rooftopLayoutSummary.playerMaxX),
+  "every dog interaction should remain safely reachable on the near rooftop"
+);
+assert.ok(
+  rooftopLayoutSummary.jump.takeoffX <= rooftopLayoutSummary.gap.leftEdge &&
+    rooftopLayoutSummary.jump.landingX >= rooftopLayoutSummary.gap.rightEdge,
+  "the authored jump arc should begin and end on opposite sides of the real gap"
+);
+assert.ok(
+  rooftopLayoutSummary.cast.every((actor) => actor.start < rooftopLayoutSummary.gap.leftEdge && actor.end > rooftopLayoutSummary.gap.rightEdge),
+  "every rooftop character should move from the left building to the right building"
+);
+const rooftopJumpFrames = vm.runInContext(`Object.values(rooftopJumpFrameRects).map((rect) => ({ ...rect }))`, sandbox);
+assert.equal(rooftopJumpFrames.length, 5, "Ted, Marshall, Lily, Robin and Barney should each have an airborne rooftop pose");
+for (let index = 1; index < rooftopJumpFrames.length; index += 1) {
+  assert.ok(
+    rooftopJumpFrames[index - 1].x + rooftopJumpFrames[index - 1].width < rooftopJumpFrames[index].x,
+    `rooftop jump frame ${index - 1} must not capture pixels from frame ${index}`
+  );
+}
+assert.doesNotThrow(() => vm.runInContext(`
+  currentScene = "rooftop";
+  activeQuest = questDefinitions.find((quest) => quest.id === "leap");
+  activeQuest.stage = "solve";
+  activeQuest.visualStep = 2;
+  assets.rooftopJumps = { width: 1983, height: 793 };
+  assets.rooftopCart = { width: 1536, height: 1024 };
+  for (const progress of [0, 0.2, 0.45, 0.7, 1]) {
+    questAction = { questId: "leap", stepIndex: 2, progress };
+    drawRooftopQuestVisuals(1200);
+    drawRooftopCast(1200);
+  }
+`, sandbox), "the market cart, patio lights and one-by-one rooftop leap should render through the full sequence");
+assert.doesNotThrow(() => vm.runInContext(`
+  currentScene = "cinemaInside";
+  activeQuest = questDefinitions.find((quest) => quest.id === "cinema");
+  activeQuest.stage = "solve";
+  activeQuest.visualStep = 2;
+  assets.cinemaProjection = { width: 1456, height: 1086 };
+  for (const progress of [0, 0.5, 1]) {
+    questAction = { questId: "cinema", stepIndex: 2, progress };
+    drawCinemaQuestVisuals(1500);
+  }
+`, sandbox), "the authored cinema projection should focus and illuminate without UI-like screen primitives");
+const bellJumpFrames = vm.runInContext(`bellJumpFrameRects.map((rect) => ({ ...rect }))`, sandbox);
+assert.equal(bellJumpFrames.length, 4, "Bell's jump should have gather, launch, flight and landing poses");
+for (let index = 1; index < bellJumpFrames.length; index += 1) {
+  assert.ok(
+    bellJumpFrames[index - 1].x + bellJumpFrames[index - 1].width < bellJumpFrames[index].x,
+    `Bell jump frame ${index - 1} must not capture pixels from frame ${index}`
+  );
+}
+assert.doesNotThrow(() => vm.runInContext(`
+  currentScene = "bellHome";
+  activeQuest = questDefinitions.find((quest) => quest.id === "bell");
+  activeQuest.stage = "solve";
+  activeQuest.visualStep = 2;
+  assets.bellJump = { width: 1983, height: 793 };
+  for (const progress of [0, 0.2, 0.5, 0.8, 1]) {
+    questAction = { questId: "bell", stepIndex: 2, progress };
+    drawBellQuestSprite(1200);
+  }
+  questAction = null;
+  activeQuest.visualStep = 3;
+  drawBellQuestSprite(1600);
+`, sandbox), "Bell's complete four-pose jump and settled landing should render without errors");
+const rooftopCastLayout = vm.runInContext(`Object.fromEntries(Object.entries(supportingCastLayout).map(([kind, layout]) => [kind, ({ ...layout })]))`, sandbox);
+const rooftopPlayerScale = vm.runInContext("SCENES.rooftop.playerScale", sandbox);
+const dogArtScale = vm.runInContext("DOG_ART_SCALE", sandbox);
+assert.equal(dogArtScale, 0.92, "all dog renderings should use the slightly reduced authored scale");
+assert.equal(rooftopPlayerScale, 0.83, "the rooftop should use its wider environmental character scale");
+assert.ok(
+  Object.values(rooftopCastLayout).every(({ height, footOffset }) => height >= 126 && height <= 131 && footOffset >= 1),
+  "every rooftop guest should fit beneath the service-door lintel and remain anchored at the paving line"
+);
+assert.ok(
+  Object.values(rooftopCastLayout).every(({ height }) => height > 93 * rooftopPlayerScale * dogArtScale * 1.7),
+  "the reduced rooftop guests should remain clearly taller than the proportionally reduced dog"
 );
 
 vm.runInContext(`state = "playing"; currentScene = "market"; journey.market = true;`, sandbox);
-for (let questIndex = 0; questIndex < 5; questIndex += 1) {
+for (let questIndex = 0; questIndex < 6; questIndex += 1) {
   vm.runInContext(`
     currentScene = "market";
     state = "playing";
@@ -378,6 +663,8 @@ for (let questIndex = 0; questIndex < 5; questIndex += 1) {
     startObstacle(flowers.find((flower) => flower.id === questFlowerId));
     assets.visitors = { width: 1536, height: 1024 };
     assets.visitorWalk = { width: 1254, height: 1254 };
+    assets.projectionist = { width: 1536, height: 1024 };
+    assets.cafeCats = { width: 1536, height: 1024 };
     drawNPCs(360);
   `, sandbox);
   assert.equal(vm.runInContext("state", sandbox), "visitorArrival", "a visitor should walk in before dialogue starts");
@@ -451,5 +738,5 @@ for (let questIndex = 0; questIndex < 5; questIndex += 1) {
 }
 
 assert.equal(vm.runInContext("flowers.filter((flower) => flower.active).length", sandbox), 1, "one final flower should remain");
-assert.equal(vm.runInContext("flowers.filter((flower) => flower.sale).length", sandbox), 5, "five flowers should be visibly marked as sold");
-console.log("Quest flow smoke test passed: five locations resolved, one final flower remains.");
+assert.equal(vm.runInContext("flowers.filter((flower) => flower.sale).length", sandbox), 6, "six flowers should be visibly marked as sold");
+console.log("Quest flow smoke test passed: six locations resolved, one final flower remains.");

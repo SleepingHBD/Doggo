@@ -26,20 +26,71 @@ const ui = {
 };
 
 const VIEW_WIDTH = 960;
+const TOTAL_QUESTS = 6;
+const DOG_ART_SCALE = 0.92;
+const ROOFTOP_CHARACTER_SCALE = 0.83;
+const POOL_LAYOUT = {
+  table: { left: 748, surface: { x: 770, y: 344, width: 326, height: 40 } },
+  playerMaxX: 560,
+  helper: { x: 696, height: 192 },
+  missingBall: {
+    hidingX: 548, foundX: 602, returnX: 681, floorY: 457,
+    rackX: 874, rackY: 360
+  },
+  interactions: { wallTray: 330, hidingPlace: 480, returnBall: 555 }
+};
+const AQUARIUM_LAYOUT = {
+  helper: { x: 112, height: 154 },
+  interactions: { reef: 260, coral: 555, deep: 900 }
+};
+const CAT_CAFE_LAYOUT = {
+  helper: { x: 790, height: 154 },
+  cats: { starts: [270, 342, 414], ends: [360, 435, 510], footY: 429 },
+  bowls: { starts: [306, 348, 390], ends: [375, 435, 495], y: 428 },
+  bell: { x: 1000, y: 322 },
+  interactions: { count: 300, bowls: 580, bell: 965 }
+};
+const BELL_HOME_LAYOUT = {
+  playerMaxX: 720,
+  // This room uses a closer interior perspective than the other quest spaces.
+  // Give Bell's caretaker an appropriately adult silhouette beside the door.
+  helper: { x: 620, height: 200 },
+  mouse: { startX: 510, endX: 760, y: 431 },
+  bell: { chairX: 900, chairY: 379, floorX: 820, floorY: 457, height: 58 },
+  interactions: { mat: 210, mouse: 530, chair: 710 }
+};
+const ROOFTOP_LAYOUT = {
+  playerMaxX: 425,
+  castFootY: 430,
+  gap: { leftEdge: 518, rightEdge: 668 },
+  runUpCart: { startX: 390, parkedX: 125, footY: 430, width: 128 },
+  jump: { takeoffX: 514, landingX: 672, apex: 78 },
+  patioLights: [[753, 309], [779, 313], [804, 316], [829, 318], [855, 320], [881, 320], [907, 319], [933, 317], [960, 314], [988, 310], [1018, 304], [1048, 297]],
+  interactions: { runway: 270, landing: 350, signal: 405 }
+};
+const CINEMA_LAYOUT = {
+  helper: { x: 118, height: 154 },
+  aisleLights: [126, 378, 638, 898],
+  projector: { x: 535, y: 216, lensX: 602, lensY: 245 },
+  screen: { x: 750, y: 94, width: 302, height: 252 },
+  interactions: { aisle: 330, projector: 560, signal: 900 }
+};
 const SCENES = {
   bench: { asset: "bench", width: 1100, minX: 105, maxX: 995, groundY: 430,
     doors: [{ x: 210, radius: 68, target: "bellHome", spawnX: 155, label: "Enter Bell's home", quest: "bell" }] },
   aquarium: { asset: "aquarium", width: 1100, minX: 105, maxX: 995, groundY: 458,
-    doors: [{ x: 400, radius: 76, target: "aquariumInside", spawnX: 155, label: "Enter the aquarium", quest: "aquarium" }] },
+    doors: [{ x: 400, radius: 76, target: "aquariumInside", spawnX: 200, label: "Enter the aquarium", quest: "aquarium" }] },
   dateNight: { asset: "dateNight", width: 1100, minX: 105, maxX: 995, groundY: 458,
     doors: [{ x: 155, radius: 78, target: "poolInside", spawnX: 155, label: "Enter the pool hall", quest: "pool" }] },
   catStories: { asset: "catStories", width: 1100, minX: 105, maxX: 995, groundY: 458,
     doors: [{ x: 125, radius: 76, target: "catInside", spawnX: 155, label: "Enter the cat cafe", quest: "cats" }] },
+  cinemaStreet: { asset: "cinemaStreet", width: 1100, minX: 105, maxX: 995, groundY: 458,
+    doors: [{ x: 710, radius: 88, target: "cinemaInside", spawnX: 210, label: "Enter the cinema", quest: "cinema" }] },
   entrance: {
     asset: "entrance", width: 960, minX: 120, maxX: 850, groundY: 452,
     doors: [
       { x: 620, radius: 110, target: "market", spawnX: 220, label: "Enter the flower market", kind: "marketEnter" },
-      { x: 825, radius: 62, target: "rooftop", spawnX: 155, label: "Take the service stairs", quest: "leap" }
+      { x: 825, radius: 62, target: "rooftop", spawnX: 90, label: "Take the service stairs", quest: "leap" }
     ]
   },
   market: {
@@ -48,16 +99,18 @@ const SCENES = {
   },
   aquariumInside: { asset: "aquariumInside", width: 1100, minX: 70, maxX: 1030, groundY: 458,
     doors: [{ x: 88, radius: 72, target: "aquarium", spawnX: 400, label: "Leave the aquarium" }] },
-  // The pool table occupies the rest of the one-dimensional walk line. Stopping
-  // at its near corner keeps the dog beside it instead of drawing through it.
-  poolInside: { asset: "poolInside", width: 1100, minX: 70, maxX: 720, groundY: 458,
+  // Reserve enough space for the widest sprint frame, not just the dog's centre.
+  // This keeps every visible paw, ear and muzzle clear of the foreground table.
+  poolInside: { asset: "poolInside", width: 1100, minX: 70, maxX: POOL_LAYOUT.playerMaxX, groundY: 458,
     doors: [{ x: 150, radius: 78, target: "dateNight", spawnX: 155, label: "Leave the pool hall" }] },
   catInside: { asset: "catInside", width: 1100, minX: 70, maxX: 1030, groundY: 458,
     doors: [{ x: 90, radius: 72, target: "catStories", spawnX: 125, label: "Leave the cat cafe" }] },
-  bellHome: { asset: "bellHome", width: 1100, minX: 70, maxX: 1030, groundY: 456,
+  bellHome: { asset: "bellHome", width: 1100, minX: 70, maxX: BELL_HOME_LAYOUT.playerMaxX, groundY: 456,
     doors: [{ x: 92, radius: 72, target: "bench", spawnX: 210, label: "Step back outside" }] },
-  rooftop: { asset: "rooftop", width: 1100, minX: 70, maxX: 1030, groundY: 430,
-    doors: [{ x: 92, radius: 72, target: "entrance", spawnX: 825, label: "Return downstairs" }] }
+  rooftop: { asset: "rooftop", width: 1100, minX: 70, maxX: ROOFTOP_LAYOUT.playerMaxX, groundY: 430, playerScale: ROOFTOP_CHARACTER_SCALE, backgroundMode: "width", backgroundY: 40,
+    doors: [{ x: 92, radius: 72, target: "entrance", spawnX: 825, label: "Return downstairs" }] },
+  cinemaInside: { asset: "cinemaInside", width: 1100, minX: 70, maxX: 1030, groundY: 458,
+    doors: [{ x: 88, radius: 72, target: "cinemaStreet", spawnX: 710, label: "Leave the cinema" }] }
 };
 
 const assetSources = {
@@ -66,20 +119,28 @@ const assetSources = {
   aquarium: "assets/exterior-aquarium-benchmark-v1.png",
   dateNight: "assets/exterior-date-night-benchmark-v1.png",
   catStories: "assets/exterior-cat-stories-benchmark-v1.png",
+  cinemaStreet: "assets/exterior-cinema-benchmark-v1.png",
   entrance: "assets/market-entrance-benchmark-v1.png",
-  market: "assets/market-interior-benchmark-v1.png",
-  aquariumInside: "assets/interior-aquarium-benchmark-v3.png",
-  poolInside: "assets/interior-pool-benchmark-v2.png",
-  catInside: "assets/interior-cat-cafe-benchmark-v2.png",
-  bellHome: "assets/interior-bell-home-benchmark-v3.png",
-  rooftop: "assets/rooftop-benchmark-v1.png",
+  market: "assets/market-interior-benchmark-v2.png",
+  aquariumInside: "assets/interior-aquarium-benchmark-v4.png",
+  poolInside: "assets/interior-pool-benchmark-v5.png",
+  catInside: "assets/interior-cat-cafe-benchmark-v3.png",
+  bellHome: "assets/interior-bell-home-benchmark-v5.png",
+  rooftop: "assets/rooftop-benchmark-v5.png",
+  cinemaInside: "assets/interior-cinema-benchmark-v2.png",
   dogMaltipoo: "assets/dog-maltipoo-authored-v2.png",
   dogMaltese: "assets/dog-maltese-authored-v2.png",
   visitors: "assets/character-visitors-authored-v2.png",
   visitorWalk: "assets/character-visitors-walk-v2.png",
   traveller: "assets/character-traveller-authored-v2.png",
   supportingCast: "assets/character-supporting-cast-v2.png",
-  questEffects: "assets/quest-effects-atlas-v1.png"
+  bellJump: "assets/character-bell-jump-v1.png",
+  rooftopJumps: "assets/character-rooftop-jumps-v1.png",
+  rooftopCart: "assets/rooftop-market-cart-v1.png",
+  cinemaProjection: "assets/cinema-projection-hail-mary-v1.png",
+  projectionist: "assets/character-projectionist-v1.png",
+  cafeCats: "assets/character-cafe-cats-v1.png",
+  questEffects: "assets/quest-effects-atlas-v2.png"
 };
 const assets = {};
 
@@ -97,17 +158,19 @@ const ambientProfiles = {
   aquarium: { rate: 0.18, palette: ["#6f8d95", "#849da0"], width: 2, height: 2, vx: [-2, 3], vy: [3, 7] },
   dateNight: { rate: 0.22, palette: ["#8b785d", "#786e58"], width: 3, height: 2, vx: [-3, 5], vy: [4, 9] },
   catStories: { rate: 0.22, palette: ["#8b785d", "#6e7757"], width: 3, height: 2, vx: [-3, 5], vy: [4, 9] },
+  cinemaStreet: { rate: 0.2, palette: ["#88755e", "#676f74"], width: 3, height: 2, vx: [-3, 5], vy: [4, 9] },
   entrance: { rate: 0.28, palette: ["#8c7955", "#6f7954", "#b38b57"], width: 3, height: 2, vx: [-4, 6], vy: [5, 11] },
   market: { rate: 1.35, palette: ["#d982a4", "#ef8c83", "#f2c24e"], width: 4, height: 2, vx: [-4, 7], vy: [4, 10] },
   aquariumInside: { rate: 0.12, palette: ["#7895a4", "#607d8f"], width: 2, height: 2, vx: [-1, 2], vy: [2, 5] },
   poolInside: { rate: 0.08, palette: ["#8a765b"], width: 2, height: 1, vx: [-1, 2], vy: [2, 4] },
   catInside: { rate: 0.08, palette: ["#9a8065"], width: 2, height: 1, vx: [-1, 2], vy: [2, 4] },
   bellHome: { rate: 0.06, palette: ["#9b866d"], width: 2, height: 1, vx: [-1, 2], vy: [2, 4] },
-  rooftop: { rate: 0.18, palette: ["#758099", "#8a866e"], width: 2, height: 2, vx: [-8, -2], vy: [1, 4] }
+  rooftop: { rate: 0.18, palette: ["#758099", "#8a866e"], width: 2, height: 2, vx: [-8, -2], vy: [1, 4] },
+  cinemaInside: { rate: 0.055, palette: ["#8f785e", "#4f5969"], width: 2, height: 1, vx: [-1, 2], vy: [1, 3] }
 };
 const scene = {
   resolved: 0, darkness: 0,
-  aquarium: false, pool: false, cats: false, bell: false, leap: false
+  aquarium: false, pool: false, cats: false, bell: false, cinema: false, leap: false
 };
 const journey = {
   leftBench: false, routeBeat: false, entrance: false, market: false,
@@ -139,12 +202,13 @@ let audioContext = null;
 let menuIndex = 0;
 
 const flowerData = {
-  peony: { name: "Coral Peony", short: "Peony", color: "#ef8c83", symbol: "✿", anchor: [315, 320], stand: 315 },
-  tulip: { name: "Apricot Tulip", short: "Tulip", color: "#f1a062", symbol: "♦", anchor: [445, 310], stand: 445 },
-  anemone: { name: "Blue Anemone", short: "Anemone", color: "#8492cc", symbol: "✤", anchor: [575, 320], stand: 575 },
-  ranunculus: { name: "Rose Ranunculus", short: "Ranunculus", color: "#d982a4", symbol: "❀", anchor: [710, 315], stand: 710 },
-  sunflower: { name: "Little Sunflower", short: "Sunflower", color: "#f2c24e", symbol: "☀", anchor: [855, 300], stand: 855 },
-  daisy: { name: "Moon Daisy", short: "Daisy", color: "#fff1db", symbol: "✽", anchor: [985, 320], stand: 985 }
+  peony: { name: "Coral Peony", short: "Peony", color: "#ef8c83", symbol: "✿", anchor: [283, 318], stand: 283 },
+  tulip: { name: "Apricot Tulip", short: "Tulip", color: "#f1a062", symbol: "♦", anchor: [408, 312], stand: 408 },
+  anemone: { name: "Blue Anemone", short: "Anemone", color: "#8492cc", symbol: "✤", anchor: [516, 318], stand: 516 },
+  ranunculus: { name: "Rose Ranunculus", short: "Ranunculus", color: "#d982a4", symbol: "❀", anchor: [635, 315], stand: 635 },
+  sunflower: { name: "Little Sunflower", short: "Sunflower", color: "#f2c24e", symbol: "☀", anchor: [753, 304], stand: 753 },
+  daisy: { name: "Moon Daisy", short: "Daisy", color: "#fff1db", symbol: "✽", anchor: [878, 318], stand: 878 },
+  jasmine: { name: "Star Jasmine", short: "Jasmine", color: "#f2dfbd", symbol: "✧", anchor: [1007, 312], stand: 1007 }
 };
 const flowers = Object.entries(flowerData).map(([id, data]) => ({ id, ...data, active: true, sale: null }));
 
@@ -211,6 +275,13 @@ const memorySpots = [
       line("Narrator", "Three versions of the same advert cover the wall. A fourth is pinned above the bin.", "narrator"),
       dogLine("Still working.", "One more version.")
     ]
+  },
+  {
+    id: "cinema", scene: "cinemaStreet", x: 493, kind: "cinema", label: "Look at the space poster", seen: false,
+    lines: () => [
+      line("Narrator", "A Project Hail Mary poster shows a tiny ship climbing toward a white star. Two used tickets sit behind the frame.", "narrator"),
+      dogLine("Long way up.", "The space one.")
+    ]
   }
 ];
 
@@ -230,16 +301,16 @@ const questDefinitions = [
       dogLine("They're pointing.", "They want us to follow.")
     ],
     steps: [
-      { x: 260, kicker: "The small reef tank", label: "Watch the colourful fish", objective: "Follow the colourful fish", lines: () => [
+      { x: AQUARIUM_LAYOUT.interactions.reef, kicker: "The small reef tank", label: "Watch the colourful fish", objective: "Follow the colourful fish", lines: () => [
         line("Narrator", "Red, yellow and blue fish dart into the same tunnel, then double back.", "narrator"),
         dogLine("Not subtle.", "That way."),
         line("Tank Keeper", "They keep circling the coral tunnel. Check behind it for bubbles.", "tankkeeper")
       ] },
-      { x: 555, kicker: "A trail of bubbles", label: "Inspect the coral tunnel", objective: "Trace the bubbles through the coral", lines: () => [
+      { x: AQUARIUM_LAYOUT.interactions.coral, kicker: "A trail of bubbles", label: "Inspect the coral tunnel", objective: "Trace the bubbles through the coral", lines: () => [
         line("Narrator", "Three bubbles rise behind the coral. Then three more. Something large is circling back.", "narrator"),
         line("Tank Keeper", "The trail is moving toward the deep blue tank. Check the far glass for a shadow.", "tankkeeper")
       ] },
-      { x: 900, kicker: "The deep blue tank", label: "Find the hidden shark", objective: "Check the shadow in the deep tank", lines: () => [
+      { x: AQUARIUM_LAYOUT.interactions.deep, kicker: "The deep blue tank", label: "Find the hidden shark", objective: "Check the shadow in the deep tank", lines: () => [
         line("Narrator", "A dark fin crosses the glass, followed by the rest of the shark.", "narrator"),
         line("Tank Keeper", "Forty-three fish, six rays, one shark. Excellent.", "tankkeeper")
       ] }
@@ -254,39 +325,39 @@ const questDefinitions = [
     ]
   },
   {
-    id: "pool", exterior: "dateNight", interior: "poolInside", place: "pool hall", title: "ONE CLEAN SHOT",
+    id: "pool", exterior: "dateNight", interior: "poolInside", place: "pool hall", title: "THE MISSING EIGHT",
     issuer: { name: "Pool Player", portrait: "poolplayer", sprite: "poolplayer" },
-    travelObjective: "Go to the pool hall and help set up one safe shot",
+    travelObjective: "Go to the pool hall and help find the missing 8-ball",
     sellout: { tag: "PAID", accent: "#a66e5b", tilt: 0.035 },
     trigger: (flower) => [
-      line("Narrator", `A pool player approaches the ${flower.name} with his cue held unusually close to the floor.`, "narrator"),
-      line("Pool Player", "I can make the last shot. I just can't practise it without threatening the ceiling—and possibly the lamp. Could you come to the pool hall and help me set up one safe attempt?", "poolplayer"),
-      dogLine("Keep the cue low.", "Show me the table."),
-      line("Pool Player", "Exactly. The lamp has already retained counsel.", "poolplayer")
+      line("Narrator", `A pool player stops beside the ${flower.name}, carrying an empty wooden triangle.`, "narrator"),
+      line("Pool Player", "The 8-ball vanished while I was setting up the table. Could you come to the pool hall and help me find it before the next game?", "poolplayer"),
+      dogLine("Round. Black. Small.", "Show me where it rolled."),
+      line("Pool Player", "And probably somewhere a cue cannot reach. That's why I asked the professional.", "poolplayer")
     ],
     arrival: () => [
-      line("Pool Player", "House rule for tonight: cue below shoulder height. This rule is mostly about me.", "poolplayer"),
-      line("Narrator", "Three pale dents sit directly above the cue rack.", "narrator"),
-      line("Pool Player", "Start with the longest cue. Check whether it lines up with those marks.", "poolplayer")
+      line("Narrator", "Every ball is gathered on the felt except the black one. A single space waits in the middle of the rack.", "narrator"),
+      line("Pool Player", "I checked the pockets twice. Start with the wall tray beside the cues; that is where the spare balls usually sit.", "poolplayer")
     ],
     steps: [
-      { x: 370, kicker: "Marks above the cue rack", label: "Inspect the longest cue", objective: "Check the longest cue beneath the ceiling marks", lines: () => [
-        line("Narrator", "The longest cue lines up perfectly with the highest dent.", "narrator"),
-        dogLine("Evidence.", "That matches."),
-        line("Pool Player", "Next, secure the guard around the hanging lamp. It deserves the protection.", "poolplayer")
+      { x: POOL_LAYOUT.interactions.wallTray, cameraFocus: 365, kicker: "The empty wall tray", label: "Check beside the cue rack", objective: "Inspect the spare-ball tray", lines: () => [
+        line("Narrator", "The tray is empty, but a clean round mark interrupts the dust. A faint track continues across the floor.", "narrator"),
+        dogLine("It rolled right.", "There is a trail."),
+        line("Pool Player", "The track ends beneath the chair. Check under it before I move anything and send the ball farther away.", "poolplayer")
       ] },
-      { x: 555, kicker: "The hanging table lamp", label: "Lower the lamp guard", objective: "Secure the hanging lamp", lines: () => [
-        line("Narrator", "The brass guard locks around the lamp with a solid click.", "narrator"),
-        line("Pool Player", "Good. Now set up the final shot and keep the cue below my shoulder.", "poolplayer")
+      { x: POOL_LAYOUT.interactions.hidingPlace, cameraFocus: 560, kicker: "A shadow beneath the chair", label: "Look for the missing ball", objective: "Search beneath the chair", lines: () => [
+        line("Narrator", "One nose reaches beneath the lowest rung. The 8-ball rolls out and stops beside a front paw.", "narrator"),
+        dogLine("Found it.", "Black ball, found."),
+        line("Pool Player", "Perfect. Nudge it along the clear floor to me. Slowly—the table leg is a very convincing pocket.", "poolplayer")
       ] },
-      { x: 715, kicker: "The final frame", label: "Set up the last shot", objective: "Line up the final shot", lines: () => [
-        line("Narrator", "Four paws make a low bridge. The cue stays level; the ball drops into the corner pocket.", "narrator"),
-        line("Pool Player", "Pocketed. Nothing overhead has filed a complaint.", "poolplayer")
+      { x: POOL_LAYOUT.interactions.returnBall, cameraFocus: 705, kicker: "A clear line to the table", label: "Nudge the 8-ball back", objective: "Return the 8-ball to the pool player", lines: () => [
+        line("Narrator", "The 8-ball rolls to the pool player's shoe. He lifts it onto the felt and closes the waiting space in the rack.", "narrator"),
+        line("Pool Player", "Complete set. And not a single ceiling tile involved.", "poolplayer")
       ] }
     ],
     solved: () => [
-      line("Pool Player", "Ceiling intact. Lamp intact. Confidence restored. I'll stay for one more frame—with the cue below my shoulder.", "poolplayer"),
-      dogLine("Keep it there.", "One more, carefully.")
+      line("Pool Player", "I'll stay and finish setting up the next game. The 8-ball is going directly in the middle where I can see it.", "poolplayer"),
+      dogLine("Good spot.", "Keep an eye on it.")
     ],
     marketReturn: (flower) => [
       line("The Florist", `The last ${flower.short} was reserved and paid for while you were at the pool hall. Pickup is at closing.`, "florist"),
@@ -310,16 +381,16 @@ const questDefinitions = [
       line("Cafe Keeper", "Start at the feeding corner. Count the cats and make sure each one has a bowl.", "catkeeper")
     ],
     steps: [
-      { x: 325, kicker: "A crowded feeding corner", label: "Count the dinner bowls", objective: "Count the bowls at the feeding corner", lines: () => [
+      { x: CAT_CAFE_LAYOUT.interactions.count, kicker: "A crowded feeding corner", label: "Count the dinner bowls", objective: "Count the bowls at the feeding corner", lines: () => [
         line("Narrator", "Three cats. Three bowls. One cat has claimed two opinions.", "narrator"),
         dogLine("Complicated.", "One at a time."),
         line("Cafe Keeper", "Now move the bowls into one row along the counter. They'll follow dinner.", "catkeeper")
       ] },
-      { x: 620, kicker: "The cafe counter", label: "Arrange the bowls in a row", objective: "Make a clear dinner row", lines: () => [
+      { x: CAT_CAFE_LAYOUT.interactions.bowls, kicker: "The cafe counter", label: "Arrange the bowls in a row", objective: "Make a clear dinner row", lines: () => [
         line("Narrator", "The bowls slide into a neat row. All three cats move with them.", "narrator"),
         line("Cafe Keeper", "Efficient. Terrifying, but efficient. The path is clear—ring the brass bell by the cat tree.", "catkeeper")
       ] },
-      { x: 965, kicker: "A little brass bell", label: "Ring the delivery bell", objective: "Ring the bell by the cat tree", lines: () => [
+      { x: CAT_CAFE_LAYOUT.interactions.bell, kicker: "A little brass bell", label: "Ring the delivery bell", objective: "Ring the bell by the cat tree", lines: () => [
         line("Narrator", "The bell rings. The counter stays clear for three full seconds.", "narrator"),
         line("Cafe Keeper", "That's our opening. We train for moments like this.", "catkeeper")
       ] }
@@ -341,8 +412,8 @@ const questDefinitions = [
     sellout: { tag: "DELIVERY", accent: "#856b91", tilt: 0.04 },
     trigger: (flower) => [
       line("Narrator", `A neighbour in a plum raincoat stops beside the ${flower.name} with a silver-ribboned parcel.`, "narrator"),
-      line("Bell's Neighbour", "This parcel is for Bell, but she won't let me close enough to deliver it. Could you come to her home and help her get comfortable with a visitor?", "bellkeeper"),
-      dogLine("I can wait.", "She can choose."),
+      line("Bell's Neighbour", "This parcel is for Bell, but he won't let me close enough to deliver it. Could you come to his home and help him get comfortable with a visitor?", "bellkeeper"),
+      dogLine("I can wait.", "He can choose."),
       line("Bell's Neighbour", "Good. Bell appreciates patience, distance, and having the final say.", "bellkeeper")
     ],
     arrival: () => [
@@ -351,23 +422,23 @@ const questDefinitions = [
       line("Bell's Neighbour", "Start on the mat. Let Bell decide whether the distance gets smaller.", "bellkeeper")
     ],
     steps: [
-      { x: 210, kicker: "The entry mat", label: "Wait on the mat", objective: "Give Bell some space", lines: () => [
+      { x: BELL_HOME_LAYOUT.interactions.mat, kicker: "The entry mat", label: "Wait on the mat", objective: "Give Bell some space", lines: () => [
         line("Narrator", `${player.name} sits on the mat. Bell blinks once.`, "narrator"),
         dogLine("No rush.", "I'll wait."),
-        line("Bell's Neighbour", "Good. Bring the cloth mouse from the basket halfway toward her—no closer.", "bellkeeper")
+        line("Bell's Neighbour", "Good. Bring the cloth mouse from the basket halfway toward him—no closer.", "bellkeeper")
       ] },
-      { x: 555, kicker: "A basket of cat toys", label: "Bring the cloth mouse closer", objective: "Find Bell's cloth mouse", lines: () => [
+      { x: BELL_HOME_LAYOUT.interactions.mouse, kicker: "A basket of cat toys", label: "Bring the cloth mouse closer", objective: "Find Bell's cloth mouse", lines: () => [
         line("Narrator", "The cloth mouse stops halfway to the chair. Bell looks at the toy, then the dog, then the toy.", "narrator"),
         line("Bell's Neighbour", "That's enough. Sit beside the armchair and let Bell choose whether to approach.", "bellkeeper")
       ] },
-      { x: 900, kicker: "Bell's armchair", label: "Sit quietly with Bell", objective: "Let Bell choose the distance", lines: () => [
+      { x: BELL_HOME_LAYOUT.interactions.chair, cameraFocus: 810, kicker: "Bell's armchair", label: "Sit quietly with Bell", objective: "Let Bell choose the distance", lines: () => [
         line("Narrator", "Bell steps down, sniffs one unfamiliar nose, and sits beside it.", "narrator"),
         line("Bell", "Prrrp.", "bell")
       ] }
     ],
     solved: () => [
       line("Bell's Neighbour", "That sound means yes. Or move six centimetres left. Either way, progress.", "bellkeeper"),
-      line("Bell's Neighbour", "I'll stay here and finish the delivery. Bell can keep the ribbon and make the box her problem.", "bellkeeper"),
+      line("Bell's Neighbour", "I'll stay here and finish the delivery. Bell can keep the ribbon and make the box his problem.", "bellkeeper"),
       dogLine("I'll take yes.", "That's enough.")
     ],
     marketReturn: (flower) => [
@@ -376,40 +447,81 @@ const questDefinitions = [
     ]
   },
   {
-    id: "leap", exterior: "entrance", interior: "rooftop", place: "market rooftop", title: "THE ROOFTOP GAP",
+    id: "cinema", exterior: "cinemaStreet", interior: "cinemaInside", place: "cinema", title: "THE QUIET SIGNAL",
+    issuer: { name: "The Projectionist", portrait: "projectionist", sprite: "projectionist" },
+    travelObjective: "Go to the cinema and help restart the stalled projector",
+    sellout: { tag: "HELD", accent: "#8b6474", tilt: 0.025 },
+    trigger: (flower) => [
+      line("Narrator", `A projectionist stops beside the ${flower.name}, carrying a brass flashlight and one loose reel.`, "narrator"),
+      line("The Projectionist", "The late screening is ready, but the projector lost power halfway through its focus test. Could you come to the cinema and help me bring it back?", "projectionist"),
+      dogLine("Show me the dark part.", "I can help with the lights."),
+      line("The Projectionist", "Good. We will start low, then work toward the screen.", "projectionist")
+    ],
+    arrival: () => [
+      line("The Projectionist", "The main circuit is holding. The aisle markers, projector and signal lamp are not.", "projectionist"),
+      line("The Projectionist", "Start at the brass aisle markers. Press each one until the path reaches the projector.", "projectionist")
+    ],
+    steps: [
+      { x: CINEMA_LAYOUT.interactions.aisle, cameraFocus: 310, kicker: "The dark aisle markers", label: "Light the aisle markers", objective: "Press the aisle markers from left to right", lines: () => [
+        line("Narrator", "Four amber markers wake in a line, each one answering the last.", "narrator"),
+        dogLine("Path is lit.", "All four."),
+        line("The Projectionist", "Good. Now turn the projector's brass focus ring until the pale edges meet.", "projectionist")
+      ] },
+      { x: CINEMA_LAYOUT.interactions.projector, cameraFocus: 600, kicker: "The old projector", label: "Align the focus ring", objective: "Turn the brass ring until the test image is sharp", lines: () => [
+        line("Narrator", "The blurred square tightens into a clean frame. The old projector settles into an even hum.", "narrator"),
+        line("The Projectionist", "Focus is steady. Go to the screen and repeat the three-light signal: amber, blue, amber.", "projectionist")
+      ] },
+      { x: CINEMA_LAYOUT.interactions.signal, cameraFocus: 915, kicker: "The waiting screen", label: "Repeat the light signal", objective: "Press amber, blue, amber at the screen", lines: () => [
+        line("Narrator", "Amber. Blue. Amber. A small ship appears beneath a white star, and the signal answers from the booth.", "narrator"),
+        line("The Projectionist", "Picture, focus, signal. We have a screening.", "projectionist")
+      ] }
+    ],
+    solved: () => [
+      line("The Projectionist", "I'll stay to run the final reel check. Thank you for giving the room its light back.", "projectionist"),
+      dogLine("Keep the signal on.", "Enjoy the screening.")
+    ],
+    marketReturn: (flower) => [
+      line("The Florist", `The last ${flower.short} was wrapped for the late screening and collected while you were at the cinema.`, "florist"),
+      dogLine("One more try.", "We'll try the next one.")
+    ]
+  },
+  {
+    id: "leap", exterior: "entrance", interior: "rooftop", place: "market rooftop", title: "THE LEAP",
     issuer: { name: "Ted", portrait: "ted", sprite: "ted" },
     travelObjective: "Go to the market rooftop and help make the crossing safe",
     sellout: { tag: "SOLD OUT", accent: "#b5915d", tilt: -0.035 },
     trigger: (flower) => [
       line("Narrator", `Five name cards slide from beneath the ${flower.name}. An orange fox catches four.`, "narrator"),
-      line("Ted", "My friends are stuck beside a gap on the market roof. Marshall wants to jump, Lily says absolutely not, and Barney has named the jump. Could you come upstairs and help us build a safe landing first?", "ted"),
-      dogLine("Nobody jumps yet.", "Show me the gap.")
+      line("Ted", "Marshall has spent all evening saying he can jump to the neighboring roof. It has a hot tub, which is not helping. Could you come upstairs and help us clear the run-up and check the landing first?", "ted"),
+      dogLine("Nobody jumps yet.", "Show me both roofs.")
     ],
     arrival: () => [
       line("Ted", "For context, the gap looked much smaller from downstairs.", "ted"),
-      line("Marshall", "I measured it with my shoe. Four shoes and one bad idea.", "marshall"),
-      line("Lily", "Great. We're using the cushions. Start with the pile by the service door and gather anything soft.", "lily")
+      line("Marshall", "I could totally make that.", "marshall"),
+      line("Lily", "You can totally wait. Start by rolling that market cart out of the run-up.", "lily")
     ],
     steps: [
-      { x: 315, kicker: "A pile of market cushions", label: "Gather the soft cushions", objective: "Collect cushions for the landing", lines: () => [
-        line("Narrator", "Cushions, flower sacks and a folded awning make a landing pad.", "narrator"),
-        line("Robin", "Now it looks like a bad idea with planning.", "robin"),
-        line("Ted", "Carry the pile to the gap and wedge the landing in place.", "ted")
+      { x: ROOFTOP_LAYOUT.interactions.runway, kicker: "The blocked run-up", label: "Roll the market cart aside", objective: "Clear Marshall's run-up", lines: () => [
+        line("Narrator", "The cart rattles back beside the service door. The path to the ledge is clear.", "narrator"),
+        line("Robin", "Excellent. It is now an unobstructed bad idea.", "robin"),
+        line("Ted", "Check the neighboring patio next. Make sure the chairs are out of the landing path.", "ted")
       ] },
-      { x: 555, kicker: "The little rooftop gap", label: "Build the landing", objective: "Place the soft landing", lines: () => [
-        line("Narrator", "The last cushion wedges into place. Nothing rolls off the roof.", "narrator"),
-        line("Barney", "Soft landing, dramatic lighting. This is becoming an event.", "barney"),
-        line("Ted", "One thing left: switch on the signal lamp so everyone can see the far edge.", "ted")
+      { x: ROOFTOP_LAYOUT.interactions.landing, cameraFocus: 570, kicker: "The opposite rooftop", label: "Check the far landing", objective: "Make sure the patio is clear", lines: () => [
+        line("Narrator", "The alley drops away between two separate rooftops. Across the gap, the tiles beside the hot tub are clear.", "narrator"),
+        line("Barney", "A rooftop, a crowd, impossible odds. I am naming this The Leap.", "barney"),
+        line("Lily", "The landing is clear. Come back from the edge and give us the signal.", "lily"),
+        line("Ted", "Good. Nobody steps past this ledge until Marshall starts his run.", "ted")
       ] },
-      { x: 725, kicker: "The market signal lamp", label: "Switch on the landing light", objective: "Light the far side", lines: () => [
-        line("Narrator", "The signal lamp comes on. Ted, Marshall, Lily, Robin and Barney cross one at a time.", "narrator"),
+      { x: ROOFTOP_LAYOUT.interactions.signal, cameraFocus: 575, kicker: "The near rooftop ledge", label: "Give Marshall the signal", objective: "Signal that the landing is clear", lines: () => [
+        line("Narrator", "The bulbs come on. Marshall runs first and clears the gap. Robin, Barney, Lily and Ted follow one at a time.", "narrator"),
         line("Ted", "Okay. Nobody make this symbolic.", "ted")
       ] }
     ],
     solved: () => [
-      line("Lily", "It looks planned now. Let's get off the roof before Barney adds a ribbon cutting.", "lily"),
-      line("Ted", "We'll stay long enough to pack the cushions, then take the service stairs. You go ahead.", "ted"),
-      dogLine("No jumping.", "Use the stairs.")
+      line("Marshall", "See? Totally makeable. I knew that the entire time.", "marshall"),
+      line("Lily", "Your knees are shaking.", "lily"),
+      line("Ted", "We'll stay on this side until Marshall stops pretending. You take the service stairs.", "ted"),
+      dogLine("Good plan.", "Stairs work.")
     ],
     marketReturn: (flower) => [
       line("The Florist", `The last ${flower.short} went into the closing bundle. It left about a minute ago.`, "florist"),
@@ -441,6 +553,11 @@ document.querySelectorAll("[data-dog]").forEach((button, index) => {
   button.addEventListener("click", () => chooseDog(button.dataset.dog));
   button.addEventListener("focus", () => setMenuSelection(index, false));
   button.addEventListener("mouseenter", () => setMenuSelection(index, false));
+});
+document.querySelectorAll("[data-checkpoint]").forEach((button, index) => {
+  button.addEventListener("click", () => jumpToCheckpoint(button.dataset.checkpoint));
+  button.addEventListener("focus", () => setMenuSelection(index + 1, false));
+  button.addEventListener("mouseenter", () => setMenuSelection(index + 1, false));
 });
 document.querySelector("#restart-button").addEventListener("click", resetGame);
 ui.continueButton.addEventListener("click", performAction);
@@ -479,7 +596,7 @@ function performAction() {
 }
 
 function getMenuOptions() {
-  if (state === "title") return [document.querySelector("#start-button")];
+  if (state === "title") return [document.querySelector("#start-button"), ...document.querySelectorAll("[data-checkpoint]")];
   if (state === "select") return [...document.querySelectorAll("[data-dog]")];
   if (state === "ending") return [document.querySelector("#restart-button")];
   return [];
@@ -545,11 +662,11 @@ function chooseDog(type) {
   });
 }
 
-function resetGame() {
+function clearStoryProgress() {
   flowers.forEach((flower) => { flower.active = true; flower.sale = null; });
   memorySpots.forEach((spot) => { spot.seen = false; });
   choiceMemories.length = 0; particles.length = 0;
-  Object.assign(scene, { resolved: 0, darkness: 0, aquarium: false, pool: false, cats: false, bell: false, leap: false });
+  Object.assign(scene, { resolved: 0, darkness: 0, aquarium: false, pool: false, cats: false, bell: false, cinema: false, leap: false });
   Object.assign(journey, { leftBench: false, routeBeat: false, entrance: false, market: false, returning: false, reunion: false });
   Object.assign(travellerEncounter, {
     stage: "waiting", hasTag: false, departureX: travellerEncounter.x,
@@ -563,6 +680,95 @@ function resetGame() {
   currentFlower = null; endingFlower = null; activeQuest = null; questAction = null;
   nearbyFlower = null; nearbyMemory = null; nearbyQuestStep = null; nearbyReunion = false;
   nearbyTraveller = false; nearbyTravelTag = false; dialogue = null;
+  ui.dialogue.hidden = true; ui.prompt.hidden = true; ui.tutorial.hidden = true;
+}
+
+function applyCheckpointProgress(resolvedCount) {
+  scene.resolved = resolvedCount;
+  scene.darkness = resolvedCount * 0.033;
+  questDefinitions.forEach((quest, index) => {
+    if (Object.prototype.hasOwnProperty.call(scene, quest.id)) scene[quest.id] = index < resolvedCount;
+  });
+  flowers.forEach((flower, index) => {
+    const resolvedQuest = questDefinitions[index];
+    if (index < resolvedCount && resolvedQuest) {
+      flower.active = false;
+      flower.sale = { ...resolvedQuest.sellout, order: index };
+    } else {
+      flower.active = true;
+      flower.sale = null;
+    }
+  });
+}
+
+function jumpToCheckpoint(checkpointId) {
+  clearStoryProgress();
+  player.type = "maltipoo"; player.name = "Momo";
+  Object.assign(journey, { leftBench: true, routeBeat: true, entrance: true, market: true, returning: false, reunion: false });
+  travellerEncounter.stage = "complete";
+
+  let checkpointLabel = "FLOWER MARKET";
+  let spawnX = 220;
+  currentScene = "market";
+
+  const questIndex = questDefinitions.findIndex((quest) => quest.id === checkpointId);
+  if (questIndex >= 0) {
+    const quest = questDefinitions[questIndex];
+    applyCheckpointProgress(questIndex);
+    activeQuest = {
+      ...quest,
+      flower: flowers[questIndex],
+      stage: "solve",
+      step: 0,
+      visualStep: 0,
+      visitorPhase: "away"
+    };
+    currentScene = quest.interior;
+    spawnX = quest.id === "leap"
+      ? SCENES[currentScene].minX + 20
+      : Math.max(SCENES[currentScene].minX + 45, quest.steps[0].x - 55);
+    checkpointLabel = quest.place.toUpperCase();
+  } else if (checkpointId === "final") {
+    applyCheckpointProgress(questDefinitions.length);
+    spawnX = 935;
+    checkpointLabel = "THE FINAL FLOWER";
+  } else if (checkpointId === "ending") {
+    applyCheckpointProgress(questDefinitions.length);
+    endingFlower = flowers.at(-1);
+    endingFlower.active = false;
+    journey.returning = true;
+    scene.darkness = 0.12;
+    currentScene = "bench";
+    spawnX = 735;
+    checkpointLabel = "THE FAMILIAR BENCH";
+  } else {
+    applyCheckpointProgress(0);
+  }
+
+  Object.assign(player, {
+    x: clamp(spawnX, SCENES[currentScene].minX, SCENES[currentScene].maxX),
+    y: SCENES[currentScene].groundY,
+    direction: "right", moving: false, sprinting: false, walkFrame: 0, pose: "idle"
+  });
+  Object.assign(keys, { left: false, right: false, sprint: false });
+  camera.x = clamp(player.x - 380, 0, Math.max(0, SCENES[currentScene].width - VIEW_WIDTH));
+  camera.target = camera.x;
+
+  ui.title.hidden = true; ui.select.hidden = true; ui.ending.hidden = true;
+  ui.hud.hidden = false; ui.location.hidden = true;
+  ui.touch.hidden = false; ui.touch.classList.add("is-active");
+  ui.frame.classList.remove("is-cinematic");
+  ui.chapter.textContent = `CHECKPOINT - ${checkpointLabel}`;
+  ui.status.textContent = checkpointId === "ending"
+    ? "Momo is carrying the final flower home"
+    : `Testing ${checkpointLabel.toLowerCase()}`;
+  state = "playing";
+  updateHUD();
+  initAudio(); tone(659, 0.08, 0.025);
+}
+
+function resetGame() {
+  clearStoryProgress();
   ui.ending.hidden = true; ui.hud.hidden = true; ui.location.hidden = true;
   ui.touch.hidden = true; ui.touch.classList.remove("is-active");
   ui.frame.classList.remove("is-cinematic");
@@ -626,6 +832,18 @@ function checkJourneyTransitions() {
     return;
   }
   if (currentScene === "catStories" && player.x >= SCENES.catStories.maxX - 2 && keys.right) {
+    switchScene("cinemaStreet", 125, () => {
+      ui.status.textContent = "The little cinema is between shows";
+      showLocation("THE EVENING ROUTE", "The Little Cinema", "One small ship waits behind the glass");
+      updateHUD(); resumePlay();
+    }, "right");
+    return;
+  }
+  if (currentScene === "cinemaStreet" && player.x <= SCENES.cinemaStreet.minX + 2 && keys.left) {
+    switchScene("catStories", SCENES.catStories.maxX - 25, () => { updateHUD(); resumePlay(); }, "left");
+    return;
+  }
+  if (currentScene === "cinemaStreet" && player.x >= SCENES.cinemaStreet.maxX - 2 && keys.right) {
     switchScene("entrance", 130, () => {
       journey.entrance = true;
       ui.chapter.textContent = "CHAPTER 1 · THE THRESHOLD";
@@ -636,7 +854,7 @@ function checkJourneyTransitions() {
     return;
   }
   if (currentScene === "entrance" && player.x <= SCENES.entrance.minX + 2 && keys.left) {
-    switchScene("catStories", SCENES.catStories.maxX - 25, () => { updateHUD(); resumePlay(); }, "left");
+    switchScene("cinemaStreet", SCENES.cinemaStreet.maxX - 25, () => { updateHUD(); resumePlay(); }, "left");
   }
 }
 
@@ -657,15 +875,15 @@ function handleUp() {
     const firstEntry = !journey.market;
     switchScene("market", 220, () => {
       journey.market = true;
-      ui.chapter.textContent = "CHAPTER 2 · SIX BLOOMS";
+      ui.chapter.textContent = "CHAPTER 2 · SEVEN BLOOMS";
       ui.status.textContent = `${player.name} entered the market`;
-      showLocation("INSIDE THE OLD ARCADE", "The Flower Market", "Six blooms wait beneath the lights");
+      showLocation("INSIDE THE OLD ARCADE", "The Flower Market", "Seven blooms wait beneath the lights");
       updateHUD();
       if (activeQuest && activeQuest.stage === "return") {
         completeQuestAtMarket();
       } else if (firstEntry) {
         showDialogue([
-          line("The Florist", `Evening, ${player.name}. Six flowers left. Please choose with your eyes before your paws.`, "florist"),
+          line("The Florist", `Evening, ${player.name}. Seven flowers left. Please choose with your eyes before your paws.`, "florist"),
           dogLine("One.", "Just one."),
           line("The Florist", "Good. A simple errand.", "florist")
         ], resumePlay);
@@ -869,15 +1087,17 @@ function interactQuestStep() {
 
 const questActionStyles = {
   aquarium: { color: "#7fd3e7", durations: [1450, 1500, 1900], poses: ["emotional", "emotional", "idle"], directions: ["right", "right", "right"] },
-  pool: { color: "#e0b268", durations: [1450, 1500, 1900], poses: ["emotional", "emotional", "sit"], directions: ["left", "right", "right"] },
+  pool: { color: "#e0b268", durations: [1300, 1650, 2050], poses: ["emotional", "emotional", "walk"], directions: ["left", "right", "right"] },
   cats: { color: "#db9b75", durations: [1350, 1750, 1500], poses: ["emotional", "walk", "emotional"], directions: ["left", "right", "right"] },
   bell: { color: "#b79ac2", durations: [1300, 1700, 2100], poses: ["sit", "emotional", "sit"], directions: ["right", "right", "left"] },
+  cinema: { color: "#c6a86b", durations: [1800, 1950, 2350], poses: ["emotional", "emotional", "sit"], directions: ["right", "right", "right"] },
   leap: { color: "#e5bb68", durations: [1750, 1850, 2600], poses: ["emotional", "emotional", "idle"], directions: ["right", "right", "left"] }
 };
 
 function beginQuestAction(step) {
   const style = questActionStyles[activeQuest.id];
   const stepIndex = activeQuest.step;
+  const cameraFocus = Number.isFinite(step.cameraFocus) ? step.cameraFocus : step.x;
   Object.assign(keys, { left: false, right: false, sprint: false });
   player.moving = false;
   player.sprinting = false;
@@ -891,7 +1111,7 @@ function beginQuestAction(step) {
     progress: 0,
     midpointPlayed: false,
     color: style.color,
-    cameraX: clamp(step.x - VIEW_WIDTH * 0.5, 0, Math.max(0, SCENES[currentScene].width - VIEW_WIDTH))
+    cameraX: clamp(cameraFocus - VIEW_WIDTH * 0.5, 0, Math.max(0, SCENES[currentScene].width - VIEW_WIDTH))
   };
   state = "questAction";
   ui.prompt.hidden = true;
@@ -967,12 +1187,11 @@ function resolveEncounter(quest) {
   const soldFlower = currentFlower;
   soldFlower.active = false;
   soldFlower.sale = { ...quest.sellout, order: scene.resolved };
-  const flag = ["aquarium", "pool", "cats", "bell", "leap"][scene.resolved];
-  if (flag) scene[flag] = true;
+  if (Object.prototype.hasOwnProperty.call(scene, quest.id)) scene[quest.id] = true;
   scene.resolved += 1; scene.darkness = scene.resolved * 0.033;
   spawnSaleSlips(player.x, player.y - 46, soldFlower.sale.accent, 12);
   currentFlower = null; updateHUD();
-  ui.status.textContent = scene.resolved === 5 ? "Only one bloom remains" : `${soldFlower.short} sold out`;
+  ui.status.textContent = scene.resolved === questDefinitions.length ? "Only one bloom remains" : `${soldFlower.short} sold out`;
   resumePlay();
 }
 
@@ -1101,8 +1320,8 @@ function updateHUD() {
     if (activeQuest.stage === "travel") ui.quest.textContent = activeQuest.travelObjective;
     else if (activeQuest.stage === "solve") ui.quest.textContent = activeQuest.steps[activeQuest.step]?.objective || "Finish the errand";
     else ui.quest.textContent = "Return to the flower market";
-    ui.count.textContent = `Obstacle ${scene.resolved + 1} of 5`;
-    appendPips(5, 5 - scene.resolved); return;
+    ui.count.textContent = `Obstacle ${scene.resolved + 1} of ${questDefinitions.length}`;
+    appendPips(questDefinitions.length, questDefinitions.length - scene.resolved); return;
   }
   if (journey.returning) {
     ui.quest.textContent = "Bring the last flower to the familiar bench";
@@ -1120,14 +1339,14 @@ function updateHUD() {
     const found = memorySpots.filter((spot) => spot.seen).length;
     ui.quest.textContent = currentScene === "entrance" ? "Stand in the doorway and press Up" : "Follow the evening road to the market";
     ui.count.textContent = found ? `${found} small ${found === 1 ? "moment" : "moments"} noticed` : "The market is ahead";
-    const route = ["bench", "aquarium", "dateNight", "catStories", "entrance"];
+    const route = ["bench", "aquarium", "dateNight", "catStories", "cinemaStreet", "entrance"];
     const routeProgress = Math.max(0, route.indexOf(currentScene));
     appendPips(route.length, route.length - routeProgress); return;
   }
   const count = flowers.filter((flower) => flower.active).length;
   ui.count.textContent = count === 1 ? "The last bloom remains" : `${count} blooms remain`;
   ui.quest.textContent = count === 1 ? "Choose the last flower" : "Choose one flower to take home";
-  appendPips(6, count);
+  appendPips(flowers.length, count);
 }
 
 function appendPips(total, active) {
@@ -1299,7 +1518,8 @@ function draw(time) {
     const actionArc = questAction ? Math.sin(questAction.progress * Math.PI) : 0;
     const actionShift = questAction && !["sit", "idle"].includes(player.pose) ? actionArc * 7 : 0;
     const actionLift = questAction && player.pose !== "sit" ? actionArc * 3 : 0;
-    drawDogSprite(ctx, player.x + actionShift, player.y - actionLift, player.type, player.pose, player.direction, player.walkFrame, 1);
+    const playerScale = SCENES[currentScene].playerScale || 1;
+    drawDogSprite(ctx, player.x + actionShift, player.y - actionLift, player.type, player.pose, player.direction, player.walkFrame, playerScale);
     if (journey.returning && currentScene === "bench" && endingFlower) drawCarriedFlower(player.x, player.y, player.direction, endingFlower, time);
   }
   drawWorldParticles(); ctx.restore();
@@ -1310,7 +1530,18 @@ function drawSceneBackground() {
   const config = SCENES[currentScene];
   const image = assets[config.asset];
   if (!image) { ctx.fillStyle = "#251d36"; ctx.fillRect(0, 0, config.width, 540); return; }
+  if (config.backgroundMode === "width") {
+    drawImageWidthAligned(image, config.width, 540, config.backgroundY || 0);
+    return;
+  }
   drawImageCover(image, config.width, 540);
+}
+
+function drawImageWidthAligned(image, targetWidth, targetHeight, y) {
+  const drawHeight = image.height * (targetWidth / image.width);
+  ctx.fillStyle = "#06183d";
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
+  ctx.drawImage(image, 0, 0, image.width, image.height, 0, y, targetWidth, drawHeight);
 }
 
 function drawImageCover(image, targetWidth, targetHeight) {
@@ -1343,6 +1574,7 @@ function drawQuestSetPieces(time) {
   else if (activeQuest.id === "pool") drawPoolQuestVisuals(time);
   else if (activeQuest.id === "cats") drawCatCafeQuestVisuals(time);
   else if (activeQuest.id === "bell") drawBellHomeQuestVisuals(time);
+  else if (activeQuest.id === "cinema") drawCinemaQuestVisuals(time);
   else if (activeQuest.id === "leap") drawRooftopQuestVisuals(time);
 }
 
@@ -1358,9 +1590,9 @@ const questEffectRects = {
 };
 
 const aquariumTankWindows = {
-  reef: { x: 180, y: 199, width: 154, height: 88 },
-  coral: { x: 397, y: 194, width: 320, height: 142 },
-  deep: { x: 769, y: 170, width: 296, height: 166 }
+  reef: { x: 170, y: 190, width: 170, height: 125 },
+  coral: { x: 395, y: 195, width: 325, height: 132 },
+  deep: { x: 772, y: 155, width: 300, height: 170 }
 };
 
 function drawQuestEffectSprite(kind, x, y, height, options = {}) {
@@ -1416,8 +1648,8 @@ function drawAquariumQuestVisuals(time) {
 
   if (fishProgress > 0) {
     withWorldClip(aquariumTankWindows.reef, () => {
-      const x = fishProgress < 1 ? 218 + fishProgress * 30 : 248 + Math.sin(time / 760) * 6;
-      const y = 268 + Math.sin(time / 360) * 2;
+      const x = fishProgress < 1 ? 208 + fishProgress * 49 : 257 + Math.sin(time / 760) * 6;
+      const y = 287 + Math.sin(time / 360) * 2;
       drawQuestEffectSprite("fish", x, y, 42, {
         alpha: Math.min(0.76, fishProgress * 1.25),
         filter: "saturate(.78) brightness(.82) contrast(1.04)"
@@ -1431,8 +1663,8 @@ function drawAquariumQuestVisuals(time) {
 
   if (sharkProgress > 0) {
     const revealing = sharkProgress < 1;
-    const x = revealing ? 795 + sharkProgress * 150 : 945 + Math.sin(time / 1700) * 9;
-    const y = revealing ? 278 - Math.sin(sharkProgress * Math.PI) * 4 : 278 + Math.sin(time / 900) * 2;
+    const x = revealing ? 810 + sharkProgress * 142 : 952 + Math.sin(time / 1700) * 9;
+    const y = revealing ? 284 - Math.sin(sharkProgress * Math.PI) * 4 : 284 + Math.sin(time / 900) * 2;
     withWorldClip(aquariumTankWindows.deep, () => {
       drawQuestEffectSprite("shark", x, y, 58, {
         alpha: revealing ? Math.min(0.82, sharkProgress * 1.4) : 0.72,
@@ -1478,83 +1710,180 @@ function drawPixelBubbleTrail(time, progress) {
 }
 
 function drawPoolQuestVisuals(time) {
-  const cueProgress = questVisualProgress(0);
-  const guardProgress = questVisualProgress(1);
-  const shotProgress = questVisualProgress(2);
+  const trayProgress = questVisualProgress(0);
+  const searchProgress = questVisualProgress(1);
+  const returnProgress = questVisualProgress(2);
+  const ball = POOL_LAYOUT.missingBall;
 
-  const cueIsActive = questAction?.questId === "pool" && questAction.stepIndex === 0;
-  if (cueProgress > 0) {
-    if (cueIsActive) {
-      const scanY = 397 - cueProgress * 139;
-      drawPixelGlint(370, scanY, 0.35 + cueProgress * 0.45, "#d9aa5d");
+  // The nearly complete rack stays visible throughout the scene. Its open
+  // centre makes the missing ball readable before a single line of dialogue.
+  withWorldClip(POOL_LAYOUT.table.surface, () => {
+    const rackedBalls = [
+      [850, 360, "#a24443"],
+      [862, 354, "#315b87"], [862, 366, "#d29b37"],
+      [874, 348, "#76518e"], [874, 372, "#ba6941"],
+      [886, 354, "#d4c8aa"], [886, 366, "#5e7b43"]
+    ];
+    rackedBalls.forEach(([x, y, color], index) => drawPoolBall(x, y, color, time + index * 140));
+    if (returnProgress >= 1) drawPoolBall(ball.rackX, ball.rackY, "#131720", time, true);
+  });
+
+  if (trayProgress > 0) drawPoolSearchTrail(trayProgress);
+
+  const searchingNow = questAction?.questId === "pool" && questAction.stepIndex === 1;
+  const returningNow = questAction?.questId === "pool" && questAction.stepIndex === 2;
+  if (returnProgress < 1) {
+    let x = ball.hidingX;
+    let alpha = trayProgress > 0 ? 0.48 : 0.22;
+    if (searchProgress > 0) {
+      x = ball.hidingX + (ball.foundX - ball.hidingX) * smoothstep(searchProgress);
+      alpha = 0.48 + searchProgress * 0.52;
     }
-    if (cueProgress >= 0.9) drawCueSafetyTag(367, 253, cueProgress);
+    if (returningNow) {
+      x = ball.foundX + (ball.returnX - ball.foundX) * smoothstep(returnProgress);
+      alpha = 1;
+    }
+    drawMissingEightBall(x, ball.floorY - (returningNow ? Math.sin(returnProgress * Math.PI * 5) * 2 : 0), time, alpha);
+    if (searchingNow && searchProgress > 0.38) {
+      drawPixelGlint(x + 3, ball.floorY - 10, Math.sin(searchProgress * Math.PI) * 0.48, "#d8c99d");
+    }
   }
 
-  if (guardProgress > 0) {
-    const y = 218 - (1 - guardProgress) * 32;
-    drawQuestEffectSprite("guard", 968, y, 46, {
-      alpha: 0.44 + guardProgress * 0.46,
-      filter: "saturate(.8) brightness(.78) contrast(1.06)"
-    });
-  }
-
-  if (shotProgress > 0 && shotProgress < 1) {
-    const eased = shotProgress * shotProgress * (3 - 2 * shotProgress);
-    const x = 820 + eased * 188;
-    const y = 354 - Math.sin(eased * Math.PI) * 5;
-    drawQuestEffectSprite("ball", x, y, 13, {
-      alpha: Math.min(1, (1 - shotProgress) * 5),
-      rotation: eased * 2.8,
-      filter: "saturate(.75) brightness(.86) contrast(1.08)"
-    });
+  if (questAction?.questId === "pool" && questAction.stepIndex === 0) {
+    drawPixelGlint(POOL_LAYOUT.interactions.wallTray, 319, Math.sin(trayProgress * Math.PI) * 0.45, "#c8a76b");
   }
 }
 
-function drawCueSafetyTag(x, y, progress) {
+function drawPoolBall(x, y, color, time, markEight = false, alpha = 1) {
+  const glint = Math.sin(time / 430) > 0.86;
   ctx.save();
-  ctx.translate(Math.round(x), Math.round(y));
-  ctx.globalAlpha = Math.min(1, progress);
-  ctx.fillStyle = "#4b3028"; ctx.fillRect(-5, -7, 10, 10);
-  ctx.fillStyle = "#c18b49"; ctx.fillRect(-4, -6, 8, 7);
-  ctx.fillStyle = "#e4bc69"; ctx.fillRect(-3, -5, 5, 2);
-  ctx.fillStyle = "#2d2530"; ctx.fillRect(-1, 1, 2, 4);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "rgba(13,16,20,.38)"; ctx.fillRect(Math.round(x - 5), Math.round(y), 10, 2);
+  ctx.fillStyle = "#151923"; ctx.fillRect(Math.round(x - 5), Math.round(y - 7), 10, 6);
+  ctx.fillStyle = color; ctx.fillRect(Math.round(x - 4), Math.round(y - 8), 8, 7);
+  ctx.fillStyle = glint ? "#fff4cc" : "rgba(255,244,204,.72)";
+  if (markEight) {
+    ctx.fillRect(Math.round(x - 2), Math.round(y - 7), 4, 3);
+    ctx.fillStyle = "#1b2029"; ctx.fillRect(Math.round(x), Math.round(y - 6), 1, 1);
+  } else {
+    ctx.fillRect(Math.round(x - 2), Math.round(y - 7), 2, 2);
+  }
   ctx.restore();
 }
+
+function drawMissingEightBall(x, y, time, alpha = 1) {
+  const bob = Math.sin(time / 360) > 0.92 ? -1 : 0;
+  const px = Math.round(x); const py = Math.round(y + bob);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "rgba(10,10,15,.42)";
+  ctx.fillRect(px - 10, py, 20, 3);
+  ctx.fillStyle = "#3e4650";
+  ctx.fillRect(px - 6, py - 15, 12, 2);
+  ctx.fillRect(px - 9, py - 12, 2, 8);
+  ctx.fillStyle = "#0b0e14";
+  ctx.fillRect(px - 7, py - 14, 14, 14);
+  ctx.fillRect(px - 9, py - 11, 18, 8);
+  ctx.fillStyle = "#252c34";
+  ctx.fillRect(px - 5, py - 13, 6, 2);
+  ctx.fillRect(px - 8, py - 10, 2, 5);
+  ctx.fillStyle = "#eee2c8";
+  ctx.fillRect(px - 1, py - 10, 3, 1);
+  ctx.fillRect(px - 2, py - 9, 5, 5);
+  ctx.fillRect(px - 1, py - 4, 3, 1);
+  ctx.fillStyle = "#1a2028";
+  ctx.fillRect(px, py - 7, 1, 1);
+  ctx.fillStyle = "#fff5db";
+  ctx.fillRect(px - 5, py - 12, 2, 2);
+  ctx.restore();
+}
+
+function drawPoolSearchTrail(progress) {
+  const reveal = clamp(progress * 1.6, 0, 1);
+  const points = [[372, 430], [410, 438], [451, 442], [493, 447], [528, 449]];
+  ctx.save();
+  ctx.globalAlpha = reveal * 0.34;
+  ctx.fillStyle = "#8d795f";
+  points.forEach(([x, y], index) => {
+    const pointReveal = clamp(reveal * 1.6 - index * 0.13, 0, 1);
+    ctx.globalAlpha = pointReveal * 0.34;
+    ctx.fillRect(x - 4, y, 8, 1);
+    ctx.fillRect(x - 2, y - 1, 4, 1);
+  });
+  ctx.restore();
+}
+
+const cafeCatRects = {
+  eating: [
+    { x: 86, y: 207, width: 352, height: 178 },
+    { x: 557, y: 217, width: 343, height: 176 },
+    { x: 1037, y: 211, width: 371, height: 183 }
+  ],
+  walking: [
+    { x: 62, y: 579, width: 416, height: 223 },
+    { x: 525, y: 582, width: 417, height: 220 },
+    { x: 1006, y: 566, width: 450, height: 237 }
+  ]
+};
 
 function drawCatCafeQuestVisuals(time) {
   const countProgress = questVisualProgress(0);
   const bowlsProgress = questVisualProgress(1);
   const bellProgress = questVisualProgress(2);
-  const bowlPoints = [[224, 373], [328, 373], [413, 373]];
-
   const countIsActive = questAction?.questId === "cats" && questAction.stepIndex === 0;
-  if (countProgress > 0 && countIsActive) {
-    bowlPoints.forEach(([x, y], index) => {
-      const stagger = clamp(countProgress * 1.7 - index * 0.22, 0, 1);
-      if (stagger > 0) drawPixelGlint(x, y - 16, stagger * (0.58 + Math.sin(time / 260 + index) * 0.12), "#e4b75f");
-    });
-  }
 
-  if (bowlsProgress > 0) {
-    const x = 330 + (560 - 330) * bowlsProgress;
-    const y = 426 - Math.sin(bowlsProgress * Math.PI) * 14;
-    drawPixelContactShadow(x, 426, 58, 0.2 * bowlsProgress);
-    drawQuestEffectSprite("bowls", x, y, 28, {
-      alpha: 0.88,
-      filter: "saturate(.78) brightness(.82) contrast(1.04)"
-    });
-  }
+  CAT_CAFE_LAYOUT.bowls.starts.forEach((startX, index) => {
+    const delayed = clamp(bowlsProgress * 1.35 - index * 0.12, 0, 1);
+    const x = startX + (CAT_CAFE_LAYOUT.bowls.ends[index] - startX) * delayed;
+    const y = CAT_CAFE_LAYOUT.bowls.y - Math.sin(delayed * Math.PI) * 5;
+    drawCafeBowl(x, y, index);
+    if (countIsActive) {
+      const stagger = clamp(countProgress * 1.7 - index * 0.22, 0, 1);
+      if (stagger > 0) drawPixelGlint(x, y - 18, stagger * (0.58 + Math.sin(time / 260 + index) * 0.12), "#e4b75f");
+    }
+  });
+
+  CAT_CAFE_LAYOUT.cats.starts.forEach((startX, index) => {
+    const delayed = clamp(bowlsProgress * 1.35 - index * 0.12, 0, 1);
+    const x = startX + (CAT_CAFE_LAYOUT.cats.ends[index] - startX) * delayed;
+    const moving = delayed > 0.03 && delayed < 0.97;
+    const step = moving ? Math.abs(Math.sin(delayed * Math.PI * 9 + index)) * 2 : 0;
+    drawCafeCatSprite(index, moving ? "walking" : "eating", x, CAT_CAFE_LAYOUT.cats.footY - step, time);
+  });
 
   const bellIsRinging = questAction?.questId === "cats" && questAction.stepIndex === 2;
   if (bellProgress > 0 && bellIsRinging) {
     const shake = Math.round(Math.sin(bellProgress * Math.PI * 10) * (1 - bellProgress) * 4);
-    drawQuestEffectSprite("bell", 1000 + shake, 312, 27, {
+    drawQuestEffectSprite("bell", CAT_CAFE_LAYOUT.bell.x + shake, CAT_CAFE_LAYOUT.bell.y, 27, {
       alpha: Math.min(1, bellProgress * 2),
       filter: "saturate(.82) brightness(.84) contrast(1.05)"
     });
-    drawPixelSoundTicks(1000, 292, bellProgress, time);
+    drawPixelSoundTicks(CAT_CAFE_LAYOUT.bell.x, CAT_CAFE_LAYOUT.bell.y - 20, bellProgress, time);
   }
+}
+
+function drawCafeBowl(x, y, index) {
+  const colors = ["#76544a", "#47606a", "#8a6b42"];
+  ctx.save();
+  ctx.fillStyle = "rgba(28,19,20,.28)"; ctx.fillRect(Math.round(x - 12), Math.round(y), 24, 2);
+  ctx.fillStyle = "#2b2630"; ctx.fillRect(Math.round(x - 10), Math.round(y - 8), 20, 7);
+  ctx.fillStyle = colors[index]; ctx.fillRect(Math.round(x - 9), Math.round(y - 7), 18, 5);
+  ctx.fillStyle = "#c3a774"; ctx.fillRect(Math.round(x - 7), Math.round(y - 6), 14, 2);
+  ctx.restore();
+}
+
+function drawCafeCatSprite(index, pose, x, footY, time) {
+  if (!assets.cafeCats) return;
+  const rect = cafeCatRects[pose][index];
+  const drawHeight = pose === "walking" ? 54 : 48;
+  const drawWidth = drawHeight * (rect.width / rect.height);
+  const breathe = pose === "eating" ? Math.sin(time / 620 + index) : 0;
+  drawPixelContactShadow(x, footY + 1, Math.min(46, drawWidth * 0.62), 0.2);
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(footY + breathe));
+  ctx.filter = "saturate(.88) brightness(.92) contrast(1.05)";
+  ctx.drawImage(assets.cafeCats, rect.x, rect.y, rect.width, rect.height, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
+  ctx.restore();
 }
 
 function drawPixelSoundTicks(x, y, progress, time) {
@@ -1576,9 +1905,9 @@ function drawBellHomeQuestVisuals(time) {
   const mouseProgress = questVisualProgress(1);
 
   if (mouseProgress > 0) {
-    const x = 510 + mouseProgress * 245;
-    const y = 430 - Math.sin(mouseProgress * Math.PI) * 9;
-    drawPixelContactShadow(x, 431, 32, 0.18 * mouseProgress);
+    const x = BELL_HOME_LAYOUT.mouse.startX + mouseProgress * (BELL_HOME_LAYOUT.mouse.endX - BELL_HOME_LAYOUT.mouse.startX);
+    const y = BELL_HOME_LAYOUT.mouse.y - Math.sin(mouseProgress * Math.PI) * 9;
+    drawPixelContactShadow(x, BELL_HOME_LAYOUT.mouse.y + 1, 32, 0.18 * mouseProgress);
     drawQuestEffectSprite("mouse", x, y, 23, {
       rotation: -0.08 + mouseProgress * 0.14,
       alpha: 0.86,
@@ -1587,41 +1916,152 @@ function drawBellHomeQuestVisuals(time) {
   }
 }
 
-function drawRooftopQuestVisuals(time) {
-  const gatherProgress = questVisualProgress(0);
-  const landingProgress = questVisualProgress(1);
-  const lightProgress = questVisualProgress(2);
+function drawCinemaQuestVisuals(time) {
+  const aisleProgress = questVisualProgress(0);
+  const focusProgress = questVisualProgress(1);
+  const signalProgress = questVisualProgress(2);
 
-  if (gatherProgress > 0) {
-    const x = 340 + gatherProgress * 195 + landingProgress * 22;
-    const y = 429 - Math.sin(gatherProgress * Math.PI) * 4 - Math.sin(landingProgress * Math.PI) * 2;
-    drawPixelContactShadow(x, 430, 72, 0.2 * gatherProgress);
-    drawQuestEffectSprite("cushions", x, y, 48, {
-      rotation: (0.035 - gatherProgress * 0.035) + Math.sin(landingProgress * Math.PI) * -0.018,
-      alpha: Math.min(0.9, gatherProgress * 1.5),
-      filter: "saturate(.58) brightness(.64) contrast(1.05) hue-rotate(9deg)"
-    });
-  }
+  CINEMA_LAYOUT.aisleLights.forEach((x, index) => {
+    const reveal = clamp(aisleProgress * 1.55 - index * 0.18, 0, 1);
+    if (reveal <= 0) return;
+    const flicker = reveal < 0.92 ? 0.65 + Math.sin(time / 54 + index * 2) * 0.25 : 0.92;
+    drawCinemaAisleLight(x, 425, reveal * flicker);
+  });
 
-  if (lightProgress > 0) {
-    drawPixelLampLight(725, 337, lightProgress, time);
+  if (focusProgress > 0) {
+    drawProjectorActivity(focusProgress, time);
+    drawCinemaProjection(focusProgress, signalProgress, time);
   }
 }
 
-function drawPixelLampLight(x, y, progress, time) {
-  const flicker = 0.74 + Math.sin(time / 150) * 0.08;
-  const motes = [
-    [-3, -17, 2], [5, -12, 1], [-11, -6, 1], [13, 0, 2],
-    [-18, 8, 1], [18, 13, 1], [-9, 20, 2], [7, 26, 1],
-    [-26, 19, 1], [27, 27, 1], [-15, 34, 1], [14, 39, 1]
-  ];
+function drawCinemaAisleLight(x, y, alpha) {
   ctx.save();
   ctx.globalCompositeOperation = "screen";
-  motes.forEach(([offsetX, offsetY, size], index) => {
-    const reveal = clamp(progress * 1.6 - index * 0.045, 0, 1);
-    ctx.globalAlpha = reveal * flicker * (index < 4 ? 0.38 : 0.2);
-    ctx.fillStyle = index % 3 === 0 ? "#ffd27a" : "#d99545";
-    ctx.fillRect(Math.round(x + offsetX), Math.round(y + offsetY), size, size);
+  ctx.globalAlpha = alpha * 0.18;
+  const glow = ctx.createRadialGradient(x, y, 1, x, y, 28);
+  glow.addColorStop(0, "#e3a94e"); glow.addColorStop(1, "rgba(227,169,78,0)");
+  ctx.fillStyle = glow; ctx.fillRect(x - 30, y - 30, 60, 60);
+  ctx.globalAlpha = alpha; ctx.fillStyle = "#d9a352";
+  ctx.fillRect(Math.round(x - 4), Math.round(y - 2), 8, 3);
+  ctx.fillStyle = "#f2d598"; ctx.fillRect(Math.round(x - 2), Math.round(y - 2), 4, 1);
+  ctx.restore();
+}
+
+function drawProjectorActivity(progress, time) {
+  const pulse = 0.72 + Math.sin(time / 150) * 0.08;
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = progress * pulse * 0.42;
+  ctx.fillStyle = "#d6b477"; ctx.fillRect(CINEMA_LAYOUT.projector.lensX - 2, CINEMA_LAYOUT.projector.lensY - 2, 6, 4);
+  ctx.globalAlpha = progress * 0.055;
+  ctx.fillStyle = "#d5c4a0";
+  ctx.beginPath();
+  ctx.moveTo(CINEMA_LAYOUT.projector.lensX + 4, CINEMA_LAYOUT.projector.lensY - 4);
+  ctx.lineTo(CINEMA_LAYOUT.screen.x, CINEMA_LAYOUT.screen.y + 28);
+  ctx.lineTo(CINEMA_LAYOUT.screen.x, CINEMA_LAYOUT.screen.y + CINEMA_LAYOUT.screen.height - 24);
+  ctx.lineTo(CINEMA_LAYOUT.projector.lensX + 4, CINEMA_LAYOUT.projector.lensY + 5);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  const angle = time / 220;
+  [[490, 232], [538, 204]].forEach(([x, y], index) => {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(angle * (index ? -1 : 1));
+    ctx.globalAlpha = progress * 0.48; ctx.fillStyle = "#b8945f";
+    ctx.fillRect(-1, -13, 2, 5); ctx.fillRect(-1, 8, 2, 5); ctx.fillRect(-13, -1, 5, 2); ctx.fillRect(8, -1, 5, 2);
+    ctx.restore();
+  });
+}
+
+function drawCinemaProjection(focusProgress, signalProgress, time) {
+  if (!assets.cinemaProjection) return;
+  const screen = CINEMA_LAYOUT.screen;
+  withWorldClip(screen, () => {
+    ctx.save();
+    const gateFlicker = 0.97 + Math.sin(time / 71) * 0.012 + Math.sin(time / 193) * 0.008;
+    const blur = Math.max(0, (1 - focusProgress) * 5.5 - signalProgress * 1.5);
+    const imageAlpha = focusProgress * (0.24 + signalProgress * 0.7) * gateFlicker;
+    ctx.globalAlpha = 0.18 + focusProgress * 0.12;
+    ctx.fillStyle = "#8c9290";
+    ctx.fillRect(screen.x, screen.y, screen.width, screen.height);
+    ctx.globalAlpha = imageAlpha;
+    ctx.filter = `blur(${blur.toFixed(2)}px) saturate(${0.48 + signalProgress * 0.38}) brightness(${0.72 + signalProgress * 0.28}) contrast(1.04)`;
+    drawImageCoverInRect(assets.cinemaProjection, screen.x, screen.y, screen.width, screen.height);
+    ctx.filter = "none";
+    ctx.globalAlpha = focusProgress * 0.045;
+    ctx.fillStyle = "#f0d9ad";
+    for (let y = screen.y + 2; y < screen.y + screen.height; y += 4) ctx.fillRect(screen.x, y, screen.width, 1);
+    ctx.restore();
+  });
+
+  if (signalProgress > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = signalProgress * (0.035 + Math.sin(time / 180) * 0.004);
+    const glow = ctx.createRadialGradient(screen.x + screen.width * 0.5, screen.y + screen.height * 0.55, 12, screen.x + screen.width * 0.5, screen.y + screen.height * 0.55, 250);
+    glow.addColorStop(0, "#b8c9cd");
+    glow.addColorStop(1, "rgba(120,145,152,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(screen.x - 180, screen.y - 80, screen.width + 360, screen.height + 220);
+    ctx.restore();
+  }
+}
+
+function drawImageCoverInRect(image, x, y, width, height) {
+  const sourceRatio = image.width / image.height;
+  const targetRatio = width / height;
+  let sourceX = 0; let sourceY = 0; let sourceWidth = image.width; let sourceHeight = image.height;
+  if (sourceRatio > targetRatio) {
+    sourceWidth = image.height * targetRatio;
+    sourceX = (image.width - sourceWidth) / 2;
+  } else {
+    sourceHeight = image.width / targetRatio;
+    sourceY = (image.height - sourceHeight) / 2;
+  }
+  ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
+}
+
+function drawRooftopQuestVisuals(time) {
+  const landingProgress = questVisualProgress(1);
+  const signalProgress = questVisualProgress(2);
+  if (landingProgress > 0 || signalProgress > 0) {
+    drawRooftopPatioLights(Math.max(landingProgress * 0.62, signalProgress), time);
+  }
+}
+
+const rooftopCartRect = { x: 154, y: 299, width: 1226, height: 437 };
+
+function drawRooftopMarketCart(progress, time) {
+  if (!assets.rooftopCart) return;
+  const layout = ROOFTOP_LAYOUT.runUpCart;
+  const eased = smoothstep(progress);
+  const x = layout.startX + (layout.parkedX - layout.startX) * eased;
+  const roll = progress > 0 && progress < 1 ? Math.sin(progress * Math.PI * 9) * 1.5 : Math.sin(time / 880) * 0.25;
+  const drawWidth = layout.width;
+  const drawHeight = drawWidth * (rooftopCartRect.height / rooftopCartRect.width);
+  drawPixelContactShadow(x, layout.footY + 1, drawWidth * 0.72, 0.2);
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(layout.footY + roll));
+  ctx.filter = "saturate(.78) brightness(.8) contrast(1.06)";
+  ctx.drawImage(assets.rooftopCart, rooftopCartRect.x, rooftopCartRect.y, rooftopCartRect.width, rooftopCartRect.height, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
+  ctx.restore();
+}
+
+function drawRooftopPatioLights(progress, time) {
+  const flicker = 0.86 + Math.sin(time / 170) * 0.045;
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ROOFTOP_LAYOUT.patioLights.forEach(([x, y], index) => {
+    const reveal = clamp(progress * 1.45 - index * 0.04, 0, 1);
+    if (reveal <= 0) return;
+    ctx.globalAlpha = reveal * flicker * 0.1;
+    const glow = ctx.createRadialGradient(x, y, 1, x, y, 18);
+    glow.addColorStop(0, "#ffd17a");
+    glow.addColorStop(1, "rgba(255,175,70,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - 18, y - 18, 36, 36);
+    ctx.globalAlpha = reveal * flicker * 0.68;
+    ctx.fillStyle = "#f4c267";
+    ctx.fillRect(Math.round(x - 1), Math.round(y - 1), 3, 3);
   });
   ctx.restore();
 }
@@ -1781,6 +2221,13 @@ const visitorSpriteRects = {
   ted: { x: 660, y: 541, width: 177, height: 390 },
   florist: { x: 1058, y: 533, width: 199, height: 396 }
 };
+const projectionistStaticRect = { x: 271, y: 70, width: 128, height: 384 };
+const projectionistWalkFrameRects = [
+  { x: 234, y: 543, width: 209, height: 381 },
+  { x: 569, y: 543, width: 104, height: 381 },
+  { x: 816, y: 543, width: 209, height: 380 },
+  { x: 1144, y: 543, width: 105, height: 381 }
+];
 
 const visitorWalkFrameRects = {
   tankkeeper: [
@@ -1810,6 +2257,11 @@ function drawNPCs(time) {
   drawMarketVisitor(time);
   drawQuestLocationActors(time);
   drawRooftopCast(time);
+  if (currentScene === "rooftop" && activeQuest?.id === "leap") {
+    // The cart occupies the foreground run-up, so it sits in front of the
+    // waiting group until the dog rolls it back beside the service door.
+    drawRooftopMarketCart(questVisualProgress(0), time);
+  }
   if (currentScene === "bench" && journey.returning) {
     drawBenchCompanion(time);
     const otherType = player.type === "maltipoo" ? "maltese" : "maltipoo";
@@ -1818,15 +2270,21 @@ function drawNPCs(time) {
 }
 
 const questHelperLayout = {
-  aquarium: { x: 220, height: 158 },
-  pool: { x: 835, height: 160 },
-  cats: { x: 805, height: 158 },
-  bell: { x: 690, height: 158 }
+  aquarium: AQUARIUM_LAYOUT.helper,
+  pool: { x: POOL_LAYOUT.helper.x, height: POOL_LAYOUT.helper.height },
+  cats: CAT_CAFE_LAYOUT.helper,
+  bell: BELL_HOME_LAYOUT.helper,
+  cinema: CINEMA_LAYOUT.helper
 };
 
 function drawQuestLocationActors(time) {
   if (!activeQuest || currentScene !== activeQuest.interior || activeQuest.id === "leap") return;
   const layout = questHelperLayout[activeQuest.id];
+  if (activeQuest.id === "cinema" && layout) {
+    const direction = player.x < layout.x ? "left" : "right";
+    drawProjectionistSprite(layout.x, SCENES[currentScene].groundY + 1, direction, time);
+    return;
+  }
   const rect = visitorSpriteRects[activeQuest.issuer.sprite];
   if (layout && rect) {
     const direction = player.x < layout.x ? "left" : "right";
@@ -1851,24 +2309,91 @@ function drawGroundedQuestVisitor(x, footY, rect, direction, time, drawHeight) {
 }
 
 function drawBellQuestSprite(time) {
-  if (!assets.supportingCast) return;
-  const rect = supportingCastRects.bell;
+  if (!assets.bellJump && !assets.supportingCast) return;
   const approach = questVisualProgress(2);
-  const onChairX = 920;
-  const onChairY = 374;
-  const floorX = 825;
-  const floorY = SCENES.bellHome.groundY + 1;
-  const x = onChairX + (floorX - onChairX) * approach;
-  const y = onChairY + (floorY - onChairY) * approach - Math.sin(approach * Math.PI) * 38;
-  const drawHeight = 72;
-  const drawWidth = drawHeight * (rect.width / rect.height);
-  const blink = Math.floor(time / 1150) % 7 === 0 ? 0.985 : 1;
+  const onChairX = BELL_HOME_LAYOUT.bell.chairX;
+  const onChairY = BELL_HOME_LAYOUT.bell.chairY;
+  const floorX = BELL_HOME_LAYOUT.bell.floorX;
+  const floorY = BELL_HOME_LAYOUT.bell.floorY;
+  let frame = 0;
+  let x = onChairX;
+  let y = onChairY;
 
-  ctx.save(); ctx.globalAlpha = 0.25; ctx.fillStyle = "#241c27";
-  ctx.beginPath(); ctx.ellipse(x, y + 2, Math.min(25, drawWidth * 0.35), approach > 0.08 && approach < 0.92 ? 3 : 5, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(blink, 1);
-  ctx.filter = "saturate(.92) brightness(.96) contrast(1.04)";
-  ctx.drawImage(assets.supportingCast, rect.x, rect.y, rect.width, rect.height, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
+  // Four authored poses divide the leap into readable physical beats: gather,
+  // push-off, flight and landing. Position easing is deliberately secondary to
+  // the changing silhouette so Bell never looks like a static sprite sliding.
+  if (approach < 0.16) {
+    const gather = approach / 0.16;
+    frame = 0;
+    y = onChairY + Math.sin(gather * Math.PI) * 2;
+  } else if (approach < 0.38) {
+    const launch = smoothstep((approach - 0.16) / 0.22);
+    frame = 1;
+    x = onChairX - 38 * launch;
+    y = onChairY - 35 * launch;
+  } else if (approach < 0.74) {
+    const flight = smoothstep((approach - 0.38) / 0.36);
+    frame = 2;
+    x = onChairX - 38 + (floorX + 18 - (onChairX - 38)) * flight;
+    y = onChairY - 35 + (floorY - 20 - (onChairY - 35)) * flight - Math.sin(flight * Math.PI) * 27;
+  } else {
+    const landing = smoothstep((approach - 0.74) / 0.26);
+    frame = 3;
+    x = floorX + 18 * (1 - landing);
+    y = floorY - 20 * (1 - landing) - Math.sin(landing * Math.PI) * 4;
+  }
+
+  if (approach < 0.16) {
+    drawPixelContactShadow(onChairX, onChairY + 1, 30, 0.17);
+  } else {
+    const shadowProgress = clamp((approach - 0.32) / 0.68, 0, 1);
+    const shadowX = onChairX - 30 + (floorX - (onChairX - 30)) * shadowProgress;
+    const shadowWidth = 14 + shadowProgress * 18;
+    drawPixelContactShadow(shadowX, floorY + 1, shadowWidth, 0.08 + shadowProgress * 0.14);
+  }
+
+  drawBellJumpFrame(frame, x, y, time);
+
+  if (approach > 0.74 && approach < 0.96) {
+    const impact = Math.sin(((approach - 0.74) / 0.22) * Math.PI);
+    ctx.save();
+    ctx.globalAlpha = impact * 0.42;
+    ctx.fillStyle = "#9a846b";
+    ctx.fillRect(Math.round(floorX - 29), Math.round(floorY - 3 - impact * 4), 4, 2);
+    ctx.fillRect(Math.round(floorX + 23), Math.round(floorY - 2 - impact * 3), 3, 2);
+    ctx.fillStyle = "#c1ab8f";
+    ctx.fillRect(Math.round(floorX - 19), Math.round(floorY - 7 - impact * 5), 2, 2);
+    ctx.restore();
+  }
+}
+
+const bellJumpFrameRects = [
+  { x: 122, y: 283, width: 335, height: 252 },
+  { x: 548, y: 260, width: 371, height: 281 },
+  { x: 1042, y: 283, width: 412, height: 179 },
+  { x: 1516, y: 277, width: 304, height: 258 }
+];
+
+function drawBellJumpFrame(frame, x, footY, time) {
+  const rect = bellJumpFrameRects[frame] || bellJumpFrameRects[0];
+  if (!assets.bellJump) {
+    const fallback = supportingCastRects.bell;
+    const drawHeight = BELL_HOME_LAYOUT.bell.height;
+    const drawWidth = drawHeight * (fallback.width / fallback.height);
+    ctx.drawImage(assets.supportingCast, fallback.x, fallback.y, fallback.width, fallback.height, x - drawWidth / 2, footY - drawHeight, drawWidth, drawHeight);
+    return;
+  }
+  // Use one source-pixel scale for all frames. Airborne poses have shallower
+  // crop boxes, so scaling each frame to an identical height would make Bell
+  // grow conspicuously in mid-air.
+  const sourceScale = BELL_HOME_LAYOUT.bell.height / bellJumpFrameRects[0].height;
+  const drawWidth = rect.width * sourceScale;
+  const drawHeight = rect.height * sourceScale;
+  const settledBreath = frame === 3 && questVisualProgress(2) >= 1 ? Math.sin(time / 720) * 0.35 : 0;
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(footY + settledBreath));
+  ctx.filter = "saturate(.82) brightness(.86) contrast(1.08)";
+  ctx.drawImage(assets.bellJump, rect.x, rect.y, rect.width, rect.height, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
   ctx.restore();
 }
 
@@ -1880,44 +2405,109 @@ const supportingCastRects = {
   bell: { x: 1420, y: 443, width: 263, height: 274 }
 };
 
-// Keep every rooftop guest clearly human-sized beside the playable dog. The
-// foot offsets account for the characters' different shoes and keep the
-// visible soles locked to the same paving line.
+// The rooftop uses a wider architectural view than the interior scenes. Keep
+// the cast comfortably below the service-door lintel while preserving their
+// height relationship to the proportionally reduced dog.
 const supportingCastLayout = {
-  marshall: { height: 154, footOffset: 1 },
-  lily: { height: 158, footOffset: 1 },
-  robin: { height: 154, footOffset: 1 },
-  barney: { height: 152, footOffset: 2 }
+  marshall: { height: 128, footOffset: 1 },
+  lily: { height: 131, footOffset: 1 },
+  robin: { height: 128, footOffset: 1 },
+  barney: { height: 126, footOffset: 2 }
 };
+
+const rooftopCastPlan = [
+  { kind: "marshall", start: 448, end: 705, delay: 0 },
+  { kind: "robin", start: 332, end: 765, delay: 0.19 },
+  { kind: "barney", start: 272, end: 825, delay: 0.38 },
+  { kind: "lily", start: 390, end: 885, delay: 0.57 },
+  { kind: "ted", start: 208, end: 945, delay: 0.76 }
+];
 
 function drawRooftopCast(time) {
   if (currentScene !== "rooftop" || activeQuest?.id !== "leap") return;
-  const footY = SCENES.rooftop.groundY + 1;
+  const footY = ROOFTOP_LAYOUT.castFootY;
   const crossing = questVisualProgress(2);
-  const cast = [
-    { kind: "ted", start: 780, end: 455 },
-    { kind: "marshall", start: 842, end: 400 },
-    { kind: "lily", start: 905, end: 350 },
-    { kind: "robin", start: 952, end: 300 },
-    { kind: "barney", start: 1012, end: 245 }
-  ];
-  const tedProgress = clamp(crossing * 1.75, 0, 1);
-  const tedX = cast[0].start + (cast[0].end - cast[0].start) * tedProgress;
-  if (tedProgress > 0 && tedProgress < 1 && assets.visitorWalk) {
-    drawVisitorWalkSprite(tedX, footY, "ted", Math.floor(time / 120) % 4, "left");
-  } else drawRooftopLeadSprite(tedX, footY, time, tedProgress >= 1 ? "right" : "right");
-  if (!assets.supportingCast) return;
-  cast.slice(1).forEach((actor, index) => {
-    const actorProgress = clamp(crossing * 1.75 - (index + 1) * 0.18, 0, 1);
-    const x = actor.start + (actor.end - actor.start) * actorProgress;
-    drawSupportingSprite(x, footY, actor.kind, time, index, actorProgress > 0 && actorProgress < 1 ? actorProgress : null);
+  rooftopCastPlan.forEach((actor, index) => {
+    const actorProgress = clamp((crossing - actor.delay) / 0.2, 0, 1);
+    drawRooftopLeapActor(actor, actorProgress, footY, time, index);
   });
+}
+
+const rooftopJumpFrameRects = {
+  ted: { x: 58, y: 233, width: 307, height: 325 },
+  marshall: { x: 456, y: 162, width: 333, height: 373 },
+  lily: { x: 899, y: 233, width: 168, height: 296 },
+  robin: { x: 1136, y: 190, width: 340, height: 337 },
+  barney: { x: 1540, y: 234, width: 368, height: 285 }
+};
+
+const rooftopJumpDrawHeights = { ted: 110, marshall: 116, lily: 101, robin: 113, barney: 105 };
+
+function drawRooftopLeapActor(actor, progress, footY, time, index) {
+  if (progress <= 0) {
+    drawRooftopStandingActor(actor.kind, actor.start, footY, time, index);
+    return;
+  }
+  if (progress >= 1) {
+    drawRooftopStandingActor(actor.kind, actor.end, footY, time, index);
+    return;
+  }
+
+  const takeoffX = ROOFTOP_LAYOUT.jump.takeoffX;
+  const landingX = ROOFTOP_LAYOUT.jump.landingX;
+  let x; let y = footY;
+  if (progress < 0.22) {
+    const run = smoothstep(progress / 0.22);
+    x = actor.start + (takeoffX - actor.start) * run;
+    y += Math.sin(run * Math.PI * 5) * -3;
+    drawPixelContactShadow(x, footY + 1, actor.kind === "marshall" ? 46 : 34, 0.24);
+  } else if (progress < 0.84) {
+    const leap = smoothstep((progress - 0.22) / 0.62);
+    x = takeoffX + (landingX - takeoffX) * leap;
+    y = footY - Math.sin(leap * Math.PI) * ROOFTOP_LAYOUT.jump.apex;
+    if (leap < 0.14) drawPixelContactShadow(takeoffX, footY + 1, 30 * (1 - leap / 0.14), 0.14);
+    if (leap > 0.82) drawPixelContactShadow(landingX, footY + 1, 30 * ((leap - 0.82) / 0.18), 0.16);
+  } else {
+    const settle = smoothstep((progress - 0.84) / 0.16);
+    x = landingX + (actor.end - landingX) * settle;
+    y = footY - Math.sin(settle * Math.PI) * 4;
+    drawPixelContactShadow(x, footY + 1, actor.kind === "marshall" ? 44 : 32, 0.24);
+  }
+  drawRooftopJumpSprite(actor.kind, x, y);
+
+  if (progress > 0.8 && progress < 0.94) {
+    const impact = Math.sin(((progress - 0.8) / 0.14) * Math.PI);
+    ctx.save(); ctx.globalAlpha = impact * 0.34; ctx.fillStyle = "#9b8b76";
+    ctx.fillRect(Math.round(landingX - 25), Math.round(footY - 5 - impact * 3), 3, 2);
+    ctx.fillRect(Math.round(landingX + 20), Math.round(footY - 3 - impact * 2), 2, 2);
+    ctx.restore();
+  }
+}
+
+function drawRooftopStandingActor(kind, x, footY, time, index) {
+  if (kind === "ted") drawRooftopLeadSprite(x, footY, time, "right");
+  else drawSupportingSprite(x, footY, kind, time, index);
+}
+
+function drawRooftopJumpSprite(kind, x, footY) {
+  const rect = rooftopJumpFrameRects[kind];
+  if (!assets.rooftopJumps || !rect) {
+    drawRooftopStandingActor(kind, x, footY, 0, 0);
+    return;
+  }
+  const drawHeight = rooftopJumpDrawHeights[kind];
+  const drawWidth = drawHeight * (rect.width / rect.height);
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(footY));
+  ctx.filter = "saturate(.88) brightness(.92) contrast(1.05)";
+  ctx.drawImage(assets.rooftopJumps, rect.x, rect.y, rect.width, rect.height, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
+  ctx.restore();
 }
 
 function drawRooftopLeadSprite(x, footY, time, direction = "right") {
   const rect = visitorSpriteRects.ted;
   if (!assets.visitors || !rect) return;
-  const drawHeight = 158;
+  const drawHeight = 131;
   const drawWidth = drawHeight * (rect.width / rect.height);
   const breathe = 1 + Math.sin(time / 760) * 0.0025;
 
@@ -2055,6 +2645,20 @@ function drawTravellerSprite(x, footY, rect, direction, time, walking = false) {
 
 function drawMarketVisitor(time) {
   if (currentScene !== "market" || !activeQuest || activeQuest.visitorPhase === "away") return;
+  if (activeQuest.issuer.sprite === "projectionist") {
+    if (["arriving", "departing"].includes(activeQuest.visitorPhase)) {
+      drawVisitorWalkSprite(
+        activeQuest.visitorX,
+        SCENES.market.groundY - 2,
+        "projectionist",
+        activeQuest.visitorWalkFrame,
+        activeQuest.visitorDirection
+      );
+    } else {
+      drawProjectionistSprite(activeQuest.visitorX, SCENES.market.groundY - 2, activeQuest.visitorDirection, time);
+    }
+    return;
+  }
   const rect = visitorSpriteRects[activeQuest.issuer.sprite];
   if (!assets.visitors || !rect) return;
   if (["arriving", "departing"].includes(activeQuest.visitorPhase) && assets.visitorWalk) {
@@ -2071,7 +2675,8 @@ function drawMarketVisitor(time) {
 }
 
 function drawVisitorWalkSprite(x, footY, sprite, frame, direction) {
-  const frames = visitorWalkFrameRects[sprite];
+  const isProjectionist = sprite === "projectionist";
+  const frames = isProjectionist ? projectionistWalkFrameRects : visitorWalkFrameRects[sprite];
   const rect = frames?.[Math.floor(frame) % frames.length];
   if (!rect) return;
   const drawHeight = 154;
@@ -2089,13 +2694,31 @@ function drawVisitorWalkSprite(x, footY, sprite, frame, direction) {
 
   ctx.save();
   ctx.translate(Math.round(x), Math.round(footY + stepLift));
-  if (direction === "right") ctx.scale(-1, 1);
+  if (isProjectionist ? direction === "left" : direction === "right") ctx.scale(-1, 1);
   ctx.filter = "saturate(.92) brightness(.96)";
   ctx.drawImage(
-    assets.visitorWalk,
+    isProjectionist ? assets.projectionist : assets.visitorWalk,
     rect.x, rect.y, rect.width, rect.height,
     -drawWidth / 2, -drawHeight, drawWidth, drawHeight
   );
+  ctx.restore();
+}
+
+function drawProjectionistSprite(x, footY, direction, time, alpha = 1) {
+  if (!assets.projectionist) return;
+  const rect = projectionistStaticRect;
+  const drawHeight = 154;
+  const drawWidth = drawHeight * (rect.width / rect.height);
+  const idle = Math.sin(time / 720) * 0.7;
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.3; ctx.fillStyle = "#17101f";
+  ctx.beginPath(); ctx.ellipse(x, footY - 2, Math.min(30, drawWidth * 0.4), 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = alpha; ctx.translate(Math.round(x), Math.round(footY + idle));
+  if (direction === "left") ctx.scale(-1, 1);
+  ctx.filter = "saturate(.9) brightness(.94) contrast(1.04)";
+  ctx.drawImage(assets.projectionist, rect.x, rect.y, rect.width, rect.height, -drawWidth / 2, -drawHeight, drawWidth, drawHeight);
   ctx.restore();
 }
 
@@ -2129,7 +2752,9 @@ function drawVisitorSprite(x, footY, rect, direction, time, alpha = 1) {
 function drawCarriedFlower(x, y, direction, flower, time) {
   const side = direction === "right" ? 1 : -1;
   const sway = Math.round(Math.sin(time / 300) * 2);
-  ctx.save(); ctx.translate(Math.round(x + side * 51), Math.round(y - 56 + sway)); if (side < 0) ctx.scale(-1, 1);
+  ctx.save();
+  ctx.translate(Math.round(x + side * 51 * DOG_ART_SCALE), Math.round(y - 56 * DOG_ART_SCALE + sway));
+  ctx.scale(side * DOG_ART_SCALE, DOG_ART_SCALE);
   ctx.fillStyle = "#486c50";
   for (let index = 0; index < 9; index += 1) ctx.fillRect(-18 + index * 2, 12 - index, 3, 2);
   ctx.fillStyle = "#769363"; ctx.fillRect(-11, 7, 6, 2); ctx.fillRect(-9, 4, 2, 5);
@@ -2143,13 +2768,13 @@ function drawCarriedFlower(x, y, direction, flower, time) {
 }
 
 function dogSceneFilter() {
-  if (["aquarium", "aquariumInside", "rooftop"].includes(currentScene)) {
+  if (["aquarium", "aquariumInside", "rooftop", "cinemaStreet"].includes(currentScene)) {
     return "saturate(.88) brightness(.94) contrast(1.04) drop-shadow(1px -1px 0 rgba(111,151,176,.18))";
   }
   if (currentScene === "bench") {
     return "saturate(.9) brightness(.96) contrast(1.04) drop-shadow(1px -1px 0 rgba(232,176,102,.16))";
   }
-  if (["market", "entrance", "poolInside", "catInside", "bellHome"].includes(currentScene)) {
+  if (["market", "entrance", "poolInside", "catInside", "bellHome", "cinemaInside"].includes(currentScene)) {
     return "saturate(.94) brightness(.98) contrast(1.03) drop-shadow(1px -1px 0 rgba(232,176,102,.12))";
   }
   return "saturate(.9) brightness(.96) contrast(1.04)";
@@ -2193,6 +2818,7 @@ const dogMasterFrameRects = {
 };
 
 function drawDogSprite(target, x, y, type, pose, direction, walkFrame, scale = 1) {
+  scale *= DOG_ART_SCALE;
   const atlas = type === "maltese" ? assets.dogMaltese : assets.dogMaltipoo;
   const frames = dogMasterFrameRects[type];
   if (!atlas || !frames) { drawFallbackDog(target, x, y, type, pose, direction, walkFrame, 2.5 * scale); return; }
@@ -2313,6 +2939,16 @@ function drawPortrait(kind) {
     portraitCtx.restore();
     return;
   }
+  if (kind === "projectionist" && assets.projectionist) {
+    const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
+    gradient.addColorStop(0, "#684d5b"); gradient.addColorStop(1, "#28283d");
+    portraitCtx.fillStyle = gradient; portraitCtx.fillRect(0, 0, 112, 112);
+    portraitCtx.save();
+    portraitCtx.filter = "saturate(.9) brightness(.96) contrast(1.03)";
+    portraitCtx.drawImage(assets.projectionist, 271, 70, 128, 160, 0, 0, 112, 112);
+    portraitCtx.restore();
+    return;
+  }
   const visitorPortrait = visitorPortraitRects[kind];
   if (visitorPortrait && assets.visitors) {
     const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
@@ -2404,13 +3040,15 @@ function drawLighting(time) {
     aquarium: [[400,205,38,.07]],
     dateNight: [[155,195,42,.08],[730,210,40,.07]],
     catStories: [[155,190,40,.08],[670,190,34,.06],[905,190,34,.06]],
+    cinemaStreet: [[705,195,46,.09]],
     entrance: [[610,205,52,.11],[825,200,34,.08]],
     market: [[360,190,38,.09],[510,188,38,.09],[695,190,38,.09],[895,190,38,.09],[1040,190,36,.08]],
     aquariumInside: [],
     poolInside: [[520,150,40,.07],[900,145,52,.06]],
     catInside: [[315,160,38,.06],[620,160,38,.06],[965,180,34,.07]],
     bellHome: [[980,190,58,.09]],
-    rooftop: [[730,315,44,.1]]
+    rooftop: [[730,315,44,.1]],
+    cinemaInside: []
   };
   const lights = lightsByScene[currentScene] || [];
   for (const [worldX,y,baseRadius,alpha] of lights) {
@@ -2423,6 +3061,10 @@ function drawLighting(time) {
 
 function transition(callback) { ui.fade.classList.add("is-active"); setTimeout(() => { callback(); setTimeout(() => ui.fade.classList.remove("is-active"), 80); }, 560); }
 function clamp(value,min,max) { return Math.max(min,Math.min(max,value)); }
+function smoothstep(value) {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
+}
 function initAudio() { if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === "suspended") audioContext.resume(); }
 function tone(frequency,duration,volume) { if (audioMuted || !audioContext) return; const oscillator=audioContext.createOscillator(); const gain=audioContext.createGain(); oscillator.type="sine"; oscillator.frequency.value=frequency; gain.gain.setValueAtTime(volume,audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(0.0001,audioContext.currentTime+duration); oscillator.connect(gain); gain.connect(audioContext.destination); oscillator.start(); oscillator.stop(audioContext.currentTime+duration); }
 function toggleSound() { audioMuted=!audioMuted; ui.soundButton.textContent=audioMuted?"×":"♪"; ui.soundButton.setAttribute("aria-label",audioMuted?"Enable sound":"Mute sound"); if(!audioMuted){initAudio();tone(659,0.1,0.025);} }
