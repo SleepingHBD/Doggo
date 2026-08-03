@@ -86,6 +86,7 @@ const sceneSummary = vm.runInContext(`Object.fromEntries(Object.entries(SCENES).
 }]))`, sandbox);
 const assetSummary = vm.runInContext(`({ ...assetSources })`, sandbox);
 const markup = fs.readFileSync(path.join(process.cwd(), "index.html"), "utf8");
+const stylesheet = fs.readFileSync(path.join(process.cwd(), "styles.css"), "utf8");
 
 assert.doesNotMatch(
   gameSource,
@@ -104,6 +105,11 @@ assert.notDeepEqual(dogVoiceComparison.momo, dogVoiceComparison.mallow, "Momo an
 
 assert.match(markup, /Continue\s*<kbd>E<\/kbd>/, "dialogue should advertise the same E action used for interaction");
 assert.match(markup, /<kbd>E<\/kbd> Interact \/ continue/, "the control legend should expose one shared action key");
+assert.match(stylesheet, /\.dialogue__body>p\{[^}]*font:500 clamp\(13px,1\.5vw,18px\)/, "dialogue copy should remain large and comfortably weighted across screen sizes");
+assert.match(stylesheet, /\.dialogue__body>p\{[^}]*text-shadow:\.35px 0 0/, "dialogue copy should retain a subtle weight boost even when the web font falls back");
+assert.match(stylesheet, /\.dialogue-choices button\{[^}]*font-size:12px[^}]*font-weight:500/, "emotional choices should use the heavier dialogue type scale");
+assert.doesNotMatch(stylesheet, /font-size:(?:6|7)px|clamp\((?:6|7)px/, "functional interface text should not fall back to squint-sized type");
+assert.match(stylesheet, /\.quest-card strong\{[^}]*clamp\(13px,1\.6vw,19px\)/, "the current objective should remain readable over detailed backgrounds");
 
 vm.runInContext(`state = "select"; menuIndex = 0;`, sandbox);
 vm.runInContext(`handleMenuKeydown({ key: "ArrowRight", repeat: false, preventDefault() {} });`, sandbox);
