@@ -64,12 +64,21 @@ const questSummary = vm.runInContext(`questDefinitions.map((quest) => ({
   id: quest.id,
   exterior: quest.exterior,
   interior: quest.interior,
+  place: quest.place,
   issuer: quest.issuer,
+  travelObjective: quest.travelObjective,
   sellout: quest.sellout,
   triggerSpeakers: quest.trigger(flowers[0]).map((entry) => entry.speaker),
+  triggerText: quest.trigger(flowers[0]).map((entry) => entry.text).join(" "),
+  arrivalSpeakers: quest.arrival().map((entry) => entry.speaker),
+  arrivalText: quest.arrival().map((entry) => entry.text).join(" "),
   returnSpeakers: quest.returned(flowers[0]).map((entry) => entry.speaker),
   returnText: quest.returned(flowers[0]).map((entry) => entry.text).join(" "),
-  steps: quest.steps.map((step) => step.x)
+  steps: quest.steps.map((step) => step.x),
+  stepGuidance: quest.steps.slice(0, -1).map((step) => ({
+    speakers: step.lines().map((entry) => entry.speaker),
+    text: step.lines().map((entry) => entry.text).join(" ")
+  }))
 }))`, sandbox);
 const sceneSummary = vm.runInContext(`Object.fromEntries(Object.entries(SCENES).map(([id, config]) => [id, {
   asset: config.asset,
@@ -110,6 +119,15 @@ for (const quest of questSummary) {
   assert.ok(sceneSummary[quest.interior].doors.some((door) => door.target === quest.exterior), `${quest.id} needs an interior exit`);
   assert.ok(quest.issuer?.name && quest.issuer?.portrait && quest.issuer?.sprite, `${quest.id} needs a visible market visitor`);
   assert.ok(quest.triggerSpeakers.includes(quest.issuer.name), `${quest.id} visitor should introduce their own obstacle`);
+  assert.match(quest.triggerText, /Could you .*help/i, `${quest.id} visitor should directly ask the dog for help`);
+  assert.match(quest.travelObjective, /^Go to .+ and help /, `${quest.id} should restate the accepted request as a clear travel objective`);
+  assert.ok(quest.travelObjective.toLowerCase().includes(quest.exterior === "entrance" ? "market rooftop" : quest.place.toLowerCase()), `${quest.id} objective should name its destination`);
+  assert.ok(quest.arrivalSpeakers.includes(quest.issuer.name), `${quest.id} visitor should personally brief the dog on arrival`);
+  assert.match(quest.arrivalText, /start/i, `${quest.id} arrival dialogue should state the first action`);
+  for (const [stepIndex, guidance] of quest.stepGuidance.entries()) {
+    assert.ok(guidance.speakers.includes(quest.issuer.name), `${quest.id} step ${stepIndex + 1} should have the visitor direct the next action`);
+    assert.match(guidance.text, /check|secure|set up|move|ring|bring|sit|carry|switch/i, `${quest.id} step ${stepIndex + 1} should clearly cue what comes next`);
+  }
   assert.ok(quest.returnSpeakers.includes(quest.issuer.name), `${quest.id} visitor should close their own obstacle`);
   assert.ok(!quest.triggerSpeakers.includes("The Florist"), `${quest.id} should not be dispatched by the florist`);
   assert.ok(quest.returnSpeakers.includes("The Florist"), `${quest.id} return should let the florist report the sale while the visitor is present`);
@@ -118,6 +136,11 @@ for (const quest of questSummary) {
 }
 assert.equal(new Set(questSummary.map((quest) => quest.issuer.sprite)).size, 5, "each obstacle should have a distinct visitor sprite");
 assert.equal(new Set(questSummary.map((quest) => quest.sellout.tag)).size, 5, "each sold flower should receive a distinct market tag");
+for (const quest of questSummary) {
+  vm.runInContext(`activeQuest = questDefinitions.find((candidate) => candidate.id === "${quest.id}"); activeQuest.stage = "travel"; updateHUD();`, sandbox);
+  assert.equal(vm.runInContext("ui.quest.textContent", sandbox), quest.travelObjective, `${quest.id} HUD should repeat the visitor's request`);
+}
+vm.runInContext("activeQuest = null", sandbox);
 assert.equal(vm.runInContext("SCENES.entrance.groundY", sandbox), 452, "the market entrance baseline should place paws on the pavement edge, not the curb face");
 assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 720, "the pool table should block the one-dimensional walk line");
 assert.ok(

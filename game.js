@@ -216,23 +216,26 @@ const questDefinitions = [
   {
     id: "aquarium", exterior: "aquarium", interior: "aquariumInside", place: "aquarium", title: "THE MISSING SHARK",
     issuer: { name: "Tank Keeper", portrait: "tankkeeper", sprite: "tankkeeper" },
+    travelObjective: "Go to the aquarium and help find the missing shark",
     sellout: { tag: "SOLD", accent: "#7194a8", tilt: -0.045 },
     trigger: (flower) => [
       line("Narrator", `A blue-jacketed keeper steps between one paw and the ${flower.name}, counting on a clipboard.`, "narrator"),
-      line("Tank Keeper", "Quick question: how many sharks can you see? If the answer is zero, we're having the same problem. The reef opens in ten minutes.", "tankkeeper"),
-      dogLine("Largest tank?", "Start with the big tank?")
+      line("Tank Keeper", "Our reef shark is missing, and the evening tour starts in ten minutes. Could you come to the aquarium and help me search the tanks?", "tankkeeper"),
+      dogLine("Lead the way.", "I can help look.")
     ],
     arrival: () => [
-      line("Tank Keeper", "Current count: forty-three small fish, six rays, zero cooperative sharks. Start with the colourful school.", "tankkeeper"),
+      line("Tank Keeper", "Current count: forty-three small fish, six rays, zero cooperative sharks. Start at the small reef tank and watch where the colourful school keeps turning.", "tankkeeper"),
       dogLine("They're pointing.", "They want us to follow.")
     ],
     steps: [
       { x: 260, kicker: "The small reef tank", label: "Watch the colourful fish", objective: "Follow the colourful fish", lines: () => [
         line("Narrator", "Red, yellow and blue fish dart into the same tunnel, then double back.", "narrator"),
-        dogLine("Not subtle.", "That way.")
+        dogLine("Not subtle.", "That way."),
+        line("Tank Keeper", "They keep circling the coral tunnel. Check behind it for bubbles.", "tankkeeper")
       ] },
       { x: 555, kicker: "A trail of bubbles", label: "Inspect the coral tunnel", objective: "Trace the bubbles through the coral", lines: () => [
-        line("Narrator", "Three bubbles rise behind the coral. Then three more. Something large is circling back.", "narrator")
+        line("Narrator", "Three bubbles rise behind the coral. Then three more. Something large is circling back.", "narrator"),
+        line("Tank Keeper", "The trail is moving toward the deep blue tank. Check the far glass for a shadow.", "tankkeeper")
       ] },
       { x: 900, kicker: "The deep blue tank", label: "Find the hidden shark", objective: "Check the shadow in the deep tank", lines: () => [
         line("Narrator", "A dark fin crosses the glass, followed by the rest of the shark.", "narrator"),
@@ -250,24 +253,28 @@ const questDefinitions = [
   {
     id: "pool", exterior: "dateNight", interior: "poolInside", place: "pool hall", title: "ONE CLEAN SHOT",
     issuer: { name: "Pool Player", portrait: "poolplayer", sprite: "poolplayer" },
+    travelObjective: "Go to the pool hall and help set up one safe shot",
     sellout: { tag: "PAID", accent: "#a66e5b", tilt: 0.035 },
     trigger: (flower) => [
       line("Narrator", `A pool player approaches the ${flower.name} with his cue held unusually close to the floor.`, "narrator"),
-      line("Pool Player", "Good news: I can make the last shot. Bad news: the ceiling has reviewed my practice swings.", "poolplayer"),
-      dogLine("And the lamp?", "The lamp too?"),
-      line("Pool Player", "The lamp has retained counsel.", "poolplayer")
+      line("Pool Player", "I can make the last shot. I just can't practise it without threatening the ceiling—and possibly the lamp. Could you come to the pool hall and help me set up one safe attempt?", "poolplayer"),
+      dogLine("Keep the cue low.", "Show me the table."),
+      line("Pool Player", "Exactly. The lamp has already retained counsel.", "poolplayer")
     ],
     arrival: () => [
       line("Pool Player", "House rule for tonight: cue below shoulder height. This rule is mostly about me.", "poolplayer"),
-      line("Narrator", "Three pale dents sit directly above the cue rack.", "narrator")
+      line("Narrator", "Three pale dents sit directly above the cue rack.", "narrator"),
+      line("Pool Player", "Start with the longest cue. Check whether it lines up with those marks.", "poolplayer")
     ],
     steps: [
       { x: 370, kicker: "Marks above the cue rack", label: "Inspect the longest cue", objective: "Check the longest cue beneath the ceiling marks", lines: () => [
         line("Narrator", "The longest cue lines up perfectly with the highest dent.", "narrator"),
-        dogLine("Evidence.", "That matches.")
+        dogLine("Evidence.", "That matches."),
+        line("Pool Player", "Next, secure the guard around the hanging lamp. It deserves the protection.", "poolplayer")
       ] },
       { x: 555, kicker: "The hanging table lamp", label: "Lower the lamp guard", objective: "Secure the hanging lamp", lines: () => [
-        line("Narrator", "The brass guard locks around the lamp with a solid click.", "narrator")
+        line("Narrator", "The brass guard locks around the lamp with a solid click.", "narrator"),
+        line("Pool Player", "Good. Now set up the final shot and keep the cue below my shoulder.", "poolplayer")
       ] },
       { x: 715, kicker: "The final frame", label: "Set up the last shot", objective: "Line up the final shot", lines: () => [
         line("Narrator", "Four paws make a low bridge. The cue stays level; the ball drops into the corner pocket.", "narrator"),
@@ -285,25 +292,28 @@ const questDefinitions = [
   {
     id: "cats", exterior: "catStories", interior: "catInside", place: "cat cafe", title: "DINNER FIRST",
     issuer: { name: "Cafe Keeper", portrait: "catkeeper", sprite: "catkeeper" },
+    travelObjective: "Go to the cat cafe and help clear the feeding area",
     sellout: { tag: "COLLECTED", accent: "#bd7a70", tilt: -0.025 },
     trigger: (flower) => [
       line("Narrator", `A cafe keeper stops beside the ${flower.name}, holding a delivery card covered in paw prints.`, "narrator"),
-      line("Cafe Keeper", "You look good at getting under tables. Mine is currently three cats and a bowl dispute.", "catkeeper"),
-      dogLine("Who's winning?", "Do they know?"),
-      line("Cafe Keeper", "The cats. They count as one team.", "catkeeper")
+      line("Cafe Keeper", "Three cats have surrounded the dinner bowls, and I can't reach the delivery bell. Could you come to the cat cafe and help me clear a path under the tables?", "catkeeper"),
+      dogLine("Dinner first.", "I'll stay low."),
+      line("Cafe Keeper", "Perfect. The cats are winning, by the way. They count as one team.", "catkeeper")
     ],
     arrival: () => [
       line("Cafe Keeper", "Welcome. Tonight's special is apparently 'do not touch my bowl.'", "catkeeper"),
-      line("Narrator", "Three tails block the route to the delivery bell.", "narrator")
+      line("Narrator", "Three tails block the route to the delivery bell.", "narrator"),
+      line("Cafe Keeper", "Start at the feeding corner. Count the cats and make sure each one has a bowl.", "catkeeper")
     ],
     steps: [
       { x: 325, kicker: "A crowded feeding corner", label: "Count the dinner bowls", objective: "Count the bowls at the feeding corner", lines: () => [
         line("Narrator", "Three cats. Three bowls. One cat has claimed two opinions.", "narrator"),
-        dogLine("Complicated.", "One at a time.")
+        dogLine("Complicated.", "One at a time."),
+        line("Cafe Keeper", "Now move the bowls into one row along the counter. They'll follow dinner.", "catkeeper")
       ] },
       { x: 620, kicker: "The cafe counter", label: "Arrange the bowls in a row", objective: "Make a clear dinner row", lines: () => [
         line("Narrator", "The bowls slide into a neat row. All three cats move with them.", "narrator"),
-        line("Cafe Keeper", "Efficient. Terrifying, but efficient.", "catkeeper")
+        line("Cafe Keeper", "Efficient. Terrifying, but efficient. The path is clear—ring the brass bell by the cat tree.", "catkeeper")
       ] },
       { x: 965, kicker: "A little brass bell", label: "Ring the delivery bell", objective: "Ring the bell by the cat tree", lines: () => [
         line("Narrator", "The bell rings. The counter stays clear for three full seconds.", "narrator"),
@@ -322,24 +332,28 @@ const questDefinitions = [
   {
     id: "bell", exterior: "bench", interior: "bellHome", place: "Bell's home", title: "A QUIET INTRODUCTION",
     issuer: { name: "Bell's Neighbour", portrait: "bellkeeper", sprite: "bellkeeper" },
+    travelObjective: "Go to Bell's home and help with a careful introduction",
     sellout: { tag: "DELIVERY", accent: "#856b91", tilt: 0.04 },
     trigger: (flower) => [
       line("Narrator", `A neighbour in a plum raincoat stops beside the ${flower.name} with a silver-ribboned parcel.`, "narrator"),
-      line("Bell's Neighbour", "This is for Bell. Bell has not approved visitors, deliveries, or Tuesdays. Could you help with the first one?", "bellkeeper"),
-      dogLine("From here?", "Should I wait here?"),
-      line("Bell's Neighbour", "From exactly there.", "bellkeeper")
+      line("Bell's Neighbour", "This parcel is for Bell, but she won't let me close enough to deliver it. Could you come to her home and help her get comfortable with a visitor?", "bellkeeper"),
+      dogLine("I can wait.", "She can choose."),
+      line("Bell's Neighbour", "Good. Bell appreciates patience, distance, and having the final say.", "bellkeeper")
     ],
     arrival: () => [
       line("Narrator", "Bell watches from the armchair. Ears forward. Tail still.", "narrator"),
-      line("Bell", "Mrrp.", "bell")
+      line("Bell", "Mrrp.", "bell"),
+      line("Bell's Neighbour", "Start on the mat. Let Bell decide whether the distance gets smaller.", "bellkeeper")
     ],
     steps: [
       { x: 210, kicker: "The entry mat", label: "Wait on the mat", objective: "Give Bell some space", lines: () => [
         line("Narrator", `${player.name} sits on the mat. Bell blinks once.`, "narrator"),
-        dogLine("No rush.", "I'll wait.")
+        dogLine("No rush.", "I'll wait."),
+        line("Bell's Neighbour", "Good. Bring the cloth mouse from the basket halfway toward her—no closer.", "bellkeeper")
       ] },
       { x: 555, kicker: "A basket of cat toys", label: "Bring the cloth mouse closer", objective: "Find Bell's cloth mouse", lines: () => [
-        line("Narrator", "The cloth mouse stops halfway to the chair. Bell looks at the toy, then the dog, then the toy.", "narrator")
+        line("Narrator", "The cloth mouse stops halfway to the chair. Bell looks at the toy, then the dog, then the toy.", "narrator"),
+        line("Bell's Neighbour", "That's enough. Sit beside the armchair and let Bell choose whether to approach.", "bellkeeper")
       ] },
       { x: 900, kicker: "Bell's armchair", label: "Sit quietly with Bell", objective: "Let Bell choose the distance", lines: () => [
         line("Narrator", "Bell steps down, sniffs one unfamiliar nose, and sits beside it.", "narrator"),
@@ -360,25 +374,28 @@ const questDefinitions = [
   {
     id: "leap", exterior: "entrance", interior: "rooftop", place: "market rooftop", title: "THE ROOFTOP GAP",
     issuer: { name: "Ted", portrait: "ted", sprite: "ted" },
+    travelObjective: "Go to the market rooftop and help make the crossing safe",
     sellout: { tag: "SOLD OUT", accent: "#b5915d", tilt: -0.035 },
     trigger: (flower) => [
       line("Narrator", `Five name cards slide from beneath the ${flower.name}. An orange fox catches four.`, "narrator"),
-      line("Ted", "Small rooftop issue. Marshall says jump, Lily says absolutely not, Robin says she could do it, and Barney has named the jump. We need cushions.", "ted"),
-      dogLine("Cushions first.", "Let's make it safe.")
+      line("Ted", "My friends are stuck beside a gap on the market roof. Marshall wants to jump, Lily says absolutely not, and Barney has named the jump. Could you come upstairs and help us build a safe landing first?", "ted"),
+      dogLine("Nobody jumps yet.", "Show me the gap.")
     ],
     arrival: () => [
       line("Ted", "For context, the gap looked much smaller from downstairs.", "ted"),
       line("Marshall", "I measured it with my shoe. Four shoes and one bad idea.", "marshall"),
-      line("Lily", "Great. We're using the cushions.", "lily")
+      line("Lily", "Great. We're using the cushions. Start with the pile by the service door and gather anything soft.", "lily")
     ],
     steps: [
       { x: 315, kicker: "A pile of market cushions", label: "Gather the soft cushions", objective: "Collect cushions for the landing", lines: () => [
         line("Narrator", "Cushions, flower sacks and a folded awning make a landing pad.", "narrator"),
-        line("Robin", "Now it looks like a bad idea with planning.", "robin")
+        line("Robin", "Now it looks like a bad idea with planning.", "robin"),
+        line("Ted", "Carry the pile to the gap and wedge the landing in place.", "ted")
       ] },
       { x: 555, kicker: "The little rooftop gap", label: "Build the landing", objective: "Place the soft landing", lines: () => [
         line("Narrator", "The last cushion wedges into place. Nothing rolls off the roof.", "narrator"),
-        line("Barney", "Soft landing, dramatic lighting. This is becoming an event.", "barney")
+        line("Barney", "Soft landing, dramatic lighting. This is becoming an event.", "barney"),
+        line("Ted", "One thing left: switch on the signal lamp so everyone can see the far edge.", "ted")
       ] },
       { x: 725, kicker: "The market signal lamp", label: "Switch on the landing light", objective: "Light the far side", lines: () => [
         line("Narrator", "The signal lamp comes on. Ted, Marshall, Lily, Robin and Barney cross one at a time.", "narrator"),
@@ -838,7 +855,7 @@ function finishVisitorDeparture() {
   if (!activeQuest || activeQuest.visitorPhase !== "departing") return;
   activeQuest.visitorX = activeQuest.visitorTargetX;
   activeQuest.visitorPhase = "away";
-  ui.status.textContent = `${activeQuest.issuer.name} went ahead to the ${activeQuest.place}`;
+  ui.status.textContent = activeQuest.travelObjective;
   resumePlay();
 }
 
@@ -1005,7 +1022,7 @@ function updateDialogueTyping(time) {
 function updateHUD() {
   ui.pips.innerHTML = "";
   if (activeQuest) {
-    if (activeQuest.stage === "travel") ui.quest.textContent = `Find the ${activeQuest.place} and press Up at its entrance`;
+    if (activeQuest.stage === "travel") ui.quest.textContent = activeQuest.travelObjective;
     else if (activeQuest.stage === "solve") ui.quest.textContent = activeQuest.steps[activeQuest.step]?.objective || "Finish the errand";
     else ui.quest.textContent = "Return to the flower market";
     ui.count.textContent = `Obstacle ${scene.resolved + 1} of 5`;
