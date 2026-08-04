@@ -250,7 +250,7 @@ for (const quest of questSummary) {
 }
 vm.runInContext("activeQuest = null", sandbox);
 assert.equal(vm.runInContext("SCENES.entrance.groundY", sandbox), 452, "the market entrance baseline should place paws on the pavement edge, not the curb face");
-assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 560, "the pool player and table should block the dog's complete visible footprint, not only its centre");
+assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 495, "the rebuilt pool table should block the dog's complete visible footprint, not only its centre");
 assert.ok(
   vm.runInContext(`questDefinitions.find((quest) => quest.id === "pool").steps.at(-1).x <= SCENES.poolInside.maxX`, sandbox),
   "the last pool interaction should remain reachable from the table's near corner"
@@ -265,8 +265,8 @@ const poolLayoutSummary = vm.runInContext(`({
   interactions: { ...POOL_LAYOUT.interactions }
 })`, sandbox);
 const widestPoolRunHalfWidth = vm.runInContext(`Math.max(
-  ...dogMasterFrameRects.maltipoo.run.map((rect) => 85 * (rect.width / rect.height) / 2),
-  ...dogMasterFrameRects.maltese.run.map((rect) => 85 * (rect.width / rect.height) / 2)
+  ...dogMasterFrameRects.maltipoo.run.map((rect) => 85 * DOG_ART_SCALE * (rect.width / rect.height) / 2),
+  ...dogMasterFrameRects.maltese.run.map((rect) => 85 * DOG_ART_SCALE * (rect.width / rect.height) / 2)
 )`, sandbox);
 assert.ok(
   poolLayoutSummary.playerMaxX + widestPoolRunHalfWidth < poolLayoutSummary.tableLeft,
@@ -287,9 +287,9 @@ assert.ok(
   "every pool interaction anchor should remain reachable without entering the table"
 );
 assert.ok(
-  poolLayoutSummary.missingBall.hidingX < poolLayoutSummary.missingBall.foundX &&
+  poolLayoutSummary.missingBall.foundX < poolLayoutSummary.missingBall.hidingX &&
     poolLayoutSummary.missingBall.foundX < poolLayoutSummary.missingBall.returnX,
-  "the missing 8-ball should visibly progress from hiding place to dog to pool player"
+  "the missing 8-ball should roll out from beneath the chair before returning to the pool player"
 );
 assert.ok(
   poolLayoutSummary.missingBall.rackX >= poolLayoutSummary.surface.x &&
@@ -355,12 +355,12 @@ assert.ok(sprintingDistance > walkingDistance * 1.5, "sprinting should be materi
 assert.equal(vm.runInContext("player.pose", sandbox), "run", "sprinting should use the run pose");
 vm.runInContext(`
   currentScene = "poolInside";
-  player.x = 550;
+  player.x = 490;
   keys.right = true;
   keys.sprint = true;
   update(0.2, 250);
 `, sandbox);
-assert.equal(vm.runInContext("player.x", sandbox), 560, "the dog's complete sprint silhouette should stop before the pool player and table");
+assert.equal(vm.runInContext("player.x", sandbox), 495, "the dog's complete sprint silhouette should stop before the pool player and table");
 assert.doesNotThrow(() => vm.runInContext(`
   assets.dogMaltipoo = { width: 1536, height: 1024 };
   assets.dogMaltese = { width: 1536, height: 1024 };
@@ -402,6 +402,7 @@ assert.equal(assetSummary.rooftopCart, "assets/rooftop-market-cart-v1.png", "the
 assert.equal(assetSummary.cinemaProjection, "assets/cinema-projection-hail-mary-v1.png", "the cinema should use an authored diegetic space projection");
 assert.equal(assetSummary.projectionist, "assets/character-projectionist-v1.png", "the cinema should use its authored projectionist atlas");
 assert.equal(assetSummary.cafeCats, "assets/character-cafe-cats-v1.png", "the cat cafe should use three authored quest cats");
+assert.equal(assetSummary.poolEightBall, "assets/pool-eight-ball-v1.png", "the pool quest should use an authored 8-ball sprite matched to the rebuilt table");
 assert.equal(assetSummary.questEffects, "assets/quest-effects-atlas-v2.png", "quest actions should use the cleaned authored pixel-art effects atlas");
 assert.equal(assetSummary.bellHome, "assets/interior-bell-home-benchmark-v5.png", "Bell's room should use the human-scale Norwegian-flag interior");
 assert.equal("portraits" in assetSummary, false, "portraits should be cropped from the same world-character artwork instead of a mismatched atlas");
@@ -413,7 +414,7 @@ const benchmarkBackgrounds = {
   entrance: "assets/market-entrance-benchmark-v1.png",
   market: "assets/market-interior-benchmark-v2.png",
   aquariumInside: "assets/interior-aquarium-benchmark-v4.png",
-  poolInside: "assets/interior-pool-benchmark-v5.png",
+  poolInside: "assets/interior-pool-benchmark-v7.png",
   catInside: "assets/interior-cat-cafe-benchmark-v3.png",
   bellHome: "assets/interior-bell-home-benchmark-v5.png",
   rooftop: "assets/rooftop-benchmark-v5.png",
@@ -437,7 +438,12 @@ assert.match(gameSource, /withWorldClip\(aquariumTankWindows\.deep/, "the discov
 assert.match(gameSource, /withWorldClip\(aquariumTankWindows\.reef/, "the tropical fish should remain clipped inside the reef tank");
 assert.match(gameSource, /function drawPoolSearchTrail\(/, "the missing ball should leave a restrained floor-level search trail");
 assert.match(gameSource, /function drawMissingEightBall\(/, "the discovered 8-ball should have a dedicated readable foreground sprite");
-assert.match(gameSource, /drawPoolBall\(ball\.rackX, ball\.rackY[^\n]*true/, "the recovered 8-ball should visibly return to the rack");
+assert.match(gameSource, /drawAuthoredPoolEightBall\(ball\.rackX, ball\.rackY, 9, 1, true\)/, "the recovered authored 8-ball should visibly return to the rack");
+assert.match(gameSource, /const rollOutProgress = smoothstep\(clamp\(/, "the hidden 8-ball should roll into view instead of fading into existence");
+assert.match(gameSource, /const rollBackProgress = smoothstep\(clamp\(/, "the dog should visibly roll the 8-ball back toward the pool player");
+assert.match(gameSource, /ctx\.rotate\(rotation\)/, "the authored 8-ball sprite should rotate according to its travelled distance");
+assert.match(gameSource, /opacity never changes/, "the chair reveal should use environmental occlusion rather than an opacity fade");
+assert.doesNotMatch(gameSource, /function drawPoolBall\(/, "the rebuilt table should not overlay primitive code-drawn coloured balls");
 assert.doesNotMatch(gameSource, /drawQuestEffectSprite\("guard"/, "the removed lamp-guard objective should not leave visual effects behind");
 assert.match(gameSource, /function drawCinemaQuestVisuals\(/, "the cinema should have scene-native mission choreography");
 assert.match(gameSource, /function drawCinemaProjection\(/, "the final cinema picture should render from an authored projected image");

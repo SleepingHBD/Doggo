@@ -30,14 +30,14 @@ const TOTAL_QUESTS = 6;
 const DOG_ART_SCALE = 0.92;
 const ROOFTOP_CHARACTER_SCALE = 0.83;
 const POOL_LAYOUT = {
-  table: { left: 748, surface: { x: 770, y: 344, width: 326, height: 40 } },
-  playerMaxX: 560,
-  helper: { x: 696, height: 192 },
+  table: { left: 650, surface: { x: 666, y: 326, width: 410, height: 64 } },
+  playerMaxX: 495,
+  helper: { x: 620, height: 192 },
   missingBall: {
-    hidingX: 548, foundX: 602, returnX: 681, floorY: 457,
-    rackX: 874, rackY: 360
+    hidingX: 548, foundX: 510, returnX: 570, floorY: 457,
+    rackX: 848, rackY: 352
   },
-  interactions: { wallTray: 330, hidingPlace: 480, returnBall: 555 }
+  interactions: { wallTray: 330, hidingPlace: 445, returnBall: 495 }
 };
 const AQUARIUM_LAYOUT = {
   helper: { x: 112, height: 154 },
@@ -123,7 +123,8 @@ const assetSources = {
   entrance: "assets/market-entrance-benchmark-v1.png",
   market: "assets/market-interior-benchmark-v2.png",
   aquariumInside: "assets/interior-aquarium-benchmark-v4.png",
-  poolInside: "assets/interior-pool-benchmark-v5.png",
+  poolInside: "assets/interior-pool-benchmark-v7.png",
+  poolEightBall: "assets/pool-eight-ball-v1.png",
   catInside: "assets/interior-cat-cafe-benchmark-v3.png",
   bellHome: "assets/interior-bell-home-benchmark-v5.png",
   rooftop: "assets/rooftop-benchmark-v5.png",
@@ -345,12 +346,12 @@ const questDefinitions = [
         dogLine("It rolled right.", "There is a trail."),
         line("Pool Player", "The track ends beneath the chair. Check under it before I move anything and send the ball farther away.", "poolplayer")
       ] },
-      { x: POOL_LAYOUT.interactions.hidingPlace, cameraFocus: 560, kicker: "A shadow beneath the chair", label: "Look for the missing ball", objective: "Search beneath the chair", lines: () => [
+      { x: POOL_LAYOUT.interactions.hidingPlace, cameraFocus: 520, kicker: "A shadow beneath the chair", label: "Look for the missing ball", objective: "Search beneath the chair", lines: () => [
         line("Narrator", "One nose reaches beneath the lowest rung. The 8-ball rolls out and stops beside a front paw.", "narrator"),
         dogLine("Found it.", "Black ball, found."),
         line("Pool Player", "Perfect. Nudge it along the clear floor to me. Slowly—the table leg is a very convincing pocket.", "poolplayer")
       ] },
-      { x: POOL_LAYOUT.interactions.returnBall, cameraFocus: 705, kicker: "A clear line to the table", label: "Nudge the 8-ball back", objective: "Return the 8-ball to the pool player", lines: () => [
+      { x: POOL_LAYOUT.interactions.returnBall, cameraFocus: 615, kicker: "A clear line to the table", label: "Nudge the 8-ball back", objective: "Return the 8-ball to the pool player", lines: () => [
         line("Narrator", "The 8-ball rolls to the pool player's shoe. He lifts it onto the felt and closes the waiting space in the rack.", "narrator"),
         line("Pool Player", "Complete set. And not a single ceiling tile involved.", "poolplayer")
       ] }
@@ -1714,18 +1715,14 @@ function drawPoolQuestVisuals(time) {
   const searchProgress = questVisualProgress(1);
   const returnProgress = questVisualProgress(2);
   const ball = POOL_LAYOUT.missingBall;
+  const ballSize = 13;
+  const ballRadius = ballSize / 2;
 
-  // The nearly complete rack stays visible throughout the scene. Its open
-  // centre makes the missing ball readable before a single line of dialogue.
+  // The seven stationary balls and their wooden triangle are authored directly
+  // into the table background so they inherit its perspective and lamp light.
+  // Only the missing 8-ball remains dynamic.
   withWorldClip(POOL_LAYOUT.table.surface, () => {
-    const rackedBalls = [
-      [850, 360, "#a24443"],
-      [862, 354, "#315b87"], [862, 366, "#d29b37"],
-      [874, 348, "#76518e"], [874, 372, "#ba6941"],
-      [886, 354, "#d4c8aa"], [886, 366, "#5e7b43"]
-    ];
-    rackedBalls.forEach(([x, y, color], index) => drawPoolBall(x, y, color, time + index * 140));
-    if (returnProgress >= 1) drawPoolBall(ball.rackX, ball.rackY, "#131720", time, true);
+    if (returnProgress >= 1) drawAuthoredPoolEightBall(ball.rackX, ball.rackY, 9, 1, true);
   });
 
   if (trayProgress > 0) drawPoolSearchTrail(trayProgress);
@@ -1733,19 +1730,32 @@ function drawPoolQuestVisuals(time) {
   const searchingNow = questAction?.questId === "pool" && questAction.stepIndex === 1;
   const returningNow = questAction?.questId === "pool" && questAction.stepIndex === 2;
   if (returnProgress < 1) {
-    let x = ball.hidingX;
-    let alpha = trayProgress > 0 ? 0.48 : 0.22;
-    if (searchProgress > 0) {
-      x = ball.hidingX + (ball.foundX - ball.hidingX) * smoothstep(searchProgress);
-      alpha = 0.48 + searchProgress * 0.52;
-    }
+    const searchActionProgress = searchingNow ? questAction.progress : 0;
+    const returnActionProgress = returningNow ? questAction.progress : 0;
+    const rollOutProgress = smoothstep(clamp((searchActionProgress - 0.08) / 0.68, 0, 1));
+    const rollBackProgress = smoothstep(clamp(returnActionProgress / 0.72, 0, 1));
+    const hasBeenFound = (activeQuest.visualStep || 0) > 1 || searchProgress >= 1;
+
     if (returningNow) {
-      x = ball.foundX + (ball.returnX - ball.foundX) * smoothstep(returnProgress);
-      alpha = 1;
-    }
-    drawMissingEightBall(x, ball.floorY - (returningNow ? Math.sin(returnProgress * Math.PI * 5) * 2 : 0), time, alpha);
-    if (searchingNow && searchProgress > 0.38) {
-      drawPixelGlint(x + 3, ball.floorY - 10, Math.sin(searchProgress * Math.PI) * 0.48, "#d8c99d");
+      const x = ball.foundX + (ball.returnX - ball.foundX) * rollBackProgress;
+      const rotation = (ball.hidingX - ball.foundX + x - ball.foundX) / ballRadius;
+      const floorRumble = Math.sin(rollBackProgress * Math.PI * 8) * (1 - rollBackProgress) * 0.6;
+      drawMissingEightBall(x, ball.floorY - Math.abs(floorRumble), time, 1, rotation);
+    } else if (searchingNow && searchActionProgress >= 0.08) {
+      const x = ball.hidingX + (ball.foundX - ball.hidingX) * rollOutProgress;
+      const rotation = (x - ball.hidingX) / ballRadius;
+      const dislodgeLift = Math.sin(clamp(rollOutProgress * 1.45, 0, 1) * Math.PI) * (1 - rollOutProgress) * 1.4;
+      // The chair hides the ball until its leading edge physically rolls clear;
+      // opacity never changes, so the reveal reads as movement rather than a fade.
+      withWorldClip({ x: ball.foundX - 20, y: ball.floorY - 18, width: 53, height: 22 }, () => {
+        drawMissingEightBall(x, ball.floorY - dislodgeLift, time, 1, rotation);
+      });
+      if (rollOutProgress > 0.48) {
+        drawPixelGlint(x + 3, ball.floorY - 10, Math.sin(rollOutProgress * Math.PI) * 0.48, "#d8c99d");
+      }
+    } else if (hasBeenFound) {
+      const settledRotation = (ball.foundX - ball.hidingX) / ballRadius;
+      drawMissingEightBall(ball.foundX, ball.floorY, time, 1, settledRotation);
     }
   }
 
@@ -1754,53 +1764,35 @@ function drawPoolQuestVisuals(time) {
   }
 }
 
-function drawPoolBall(x, y, color, time, markEight = false, alpha = 1) {
-  const glint = Math.sin(time / 430) > 0.86;
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = "rgba(13,16,20,.38)"; ctx.fillRect(Math.round(x - 5), Math.round(y), 10, 2);
-  ctx.fillStyle = "#151923"; ctx.fillRect(Math.round(x - 5), Math.round(y - 7), 10, 6);
-  ctx.fillStyle = color; ctx.fillRect(Math.round(x - 4), Math.round(y - 8), 8, 7);
-  ctx.fillStyle = glint ? "#fff4cc" : "rgba(255,244,204,.72)";
-  if (markEight) {
-    ctx.fillRect(Math.round(x - 2), Math.round(y - 7), 4, 3);
-    ctx.fillStyle = "#1b2029"; ctx.fillRect(Math.round(x), Math.round(y - 6), 1, 1);
-  } else {
-    ctx.fillRect(Math.round(x - 2), Math.round(y - 7), 2, 2);
-  }
-  ctx.restore();
+function drawMissingEightBall(x, y, time, alpha = 1, rotation = 0) {
+  drawAuthoredPoolEightBall(x, y, 13, alpha, false, rotation);
 }
 
-function drawMissingEightBall(x, y, time, alpha = 1) {
-  const bob = Math.sin(time / 360) > 0.92 ? -1 : 0;
-  const px = Math.round(x); const py = Math.round(y + bob);
+const poolEightBallRect = { x: 298, y: 285, width: 658, height: 655 };
+
+function drawAuthoredPoolEightBall(x, y, size, alpha = 1, onFelt = false, rotation = 0) {
+  if (!assets.poolEightBall) return;
   ctx.save();
+  ctx.globalAlpha = alpha * (onFelt ? 0.16 : 0.28);
+  ctx.fillStyle = onFelt ? "#14271d" : "#18130f";
+  ctx.fillRect(Math.round(x - size * 0.42), Math.round(y), Math.max(2, Math.round(size * 0.84)), onFelt ? 1 : 2);
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = "rgba(10,10,15,.42)";
-  ctx.fillRect(px - 10, py, 20, 3);
-  ctx.fillStyle = "#3e4650";
-  ctx.fillRect(px - 6, py - 15, 12, 2);
-  ctx.fillRect(px - 9, py - 12, 2, 8);
-  ctx.fillStyle = "#0b0e14";
-  ctx.fillRect(px - 7, py - 14, 14, 14);
-  ctx.fillRect(px - 9, py - 11, 18, 8);
-  ctx.fillStyle = "#252c34";
-  ctx.fillRect(px - 5, py - 13, 6, 2);
-  ctx.fillRect(px - 8, py - 10, 2, 5);
-  ctx.fillStyle = "#eee2c8";
-  ctx.fillRect(px - 1, py - 10, 3, 1);
-  ctx.fillRect(px - 2, py - 9, 5, 5);
-  ctx.fillRect(px - 1, py - 4, 3, 1);
-  ctx.fillStyle = "#1a2028";
-  ctx.fillRect(px, py - 7, 1, 1);
-  ctx.fillStyle = "#fff5db";
-  ctx.fillRect(px - 5, py - 12, 2, 2);
+  ctx.filter = onFelt
+    ? "saturate(.52) brightness(.62) contrast(1.04)"
+    : "saturate(.58) brightness(.7) contrast(1.05)";
+  ctx.translate(Math.round(x), Math.round(y - size / 2));
+  ctx.rotate(rotation);
+  ctx.drawImage(
+    assets.poolEightBall,
+    poolEightBallRect.x, poolEightBallRect.y, poolEightBallRect.width, poolEightBallRect.height,
+    Math.round(-size / 2), Math.round(-size / 2), size, size
+  );
   ctx.restore();
 }
 
 function drawPoolSearchTrail(progress) {
   const reveal = clamp(progress * 1.6, 0, 1);
-  const points = [[372, 430], [410, 438], [451, 442], [493, 447], [528, 449]];
+  const points = [[372, 430], [401, 438], [430, 442], [454, 447], [476, 449]];
   ctx.save();
   ctx.globalAlpha = reveal * 0.34;
   ctx.fillStyle = "#8d795f";
