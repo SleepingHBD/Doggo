@@ -262,6 +262,7 @@ const poolLayoutSummary = vm.runInContext(`({
   helperX: POOL_LAYOUT.helper.x,
   helperHeight: POOL_LAYOUT.helper.height,
   missingBall: { ...POOL_LAYOUT.missingBall },
+  searchActionDuration: questActionStyles.pool.durations[1],
   interactions: { ...POOL_LAYOUT.interactions }
 })`, sandbox);
 const widestPoolRunHalfWidth = vm.runInContext(`Math.max(
@@ -287,10 +288,26 @@ assert.ok(
   "every pool interaction anchor should remain reachable without entering the table"
 );
 assert.ok(
-  poolLayoutSummary.missingBall.foundX < poolLayoutSummary.missingBall.hidingX &&
+  poolLayoutSummary.missingBall.hidingX < poolLayoutSummary.missingBall.foundX &&
     poolLayoutSummary.missingBall.foundX < poolLayoutSummary.missingBall.returnX,
-  "the missing 8-ball should roll out from beneath the chair before returning to the pool player"
+  "the missing 8-ball should roll out past the dog before returning to the pool player"
 );
+for (const dogX of [poolLayoutSummary.interactions.hidingPlace - 70, poolLayoutSummary.playerMaxX]) {
+  const rollStartX = dogX + poolLayoutSummary.missingBall.dogOffsetX;
+  const dogCoverEdge = dogX + poolLayoutSummary.missingBall.dogCoverHalfWidth;
+  const discoveredX = Math.max(
+    poolLayoutSummary.missingBall.foundX,
+    Math.min(dogX + poolLayoutSummary.missingBall.rollClearance, poolLayoutSummary.missingBall.returnX - 28)
+  );
+  assert.ok(rollStartX < dogCoverEdge, "the 8-ball should begin behind the dog's visible silhouette");
+  assert.ok(discoveredX > dogCoverEdge + 6.5, "the 8-ball should finish clearly beyond the dog's paws and muzzle");
+}
+assert.ok(poolLayoutSummary.missingBall.dogCoverHalfWidth <= 32, "the ball reveal edge should sit beneath the dog's front-leg silhouette rather than beyond its nose");
+const poolBallEmergenceMs =
+  (poolLayoutSummary.missingBall.emergenceEnd - poolLayoutSummary.missingBall.emergenceStart) *
+  (poolLayoutSummary.missingBall.rollEnd - poolLayoutSummary.missingBall.rollStart) *
+  poolLayoutSummary.searchActionDuration;
+assert.ok(poolBallEmergenceMs >= 600, "the ball should take long enough to visibly emerge past the dog's silhouette");
 assert.ok(
   poolLayoutSummary.missingBall.rackX >= poolLayoutSummary.surface.x &&
     poolLayoutSummary.missingBall.rackX <= poolLayoutSummary.surface.x + poolLayoutSummary.surface.width &&
@@ -439,10 +456,13 @@ assert.match(gameSource, /withWorldClip\(aquariumTankWindows\.reef/, "the tropic
 assert.match(gameSource, /function drawPoolSearchTrail\(/, "the missing ball should leave a restrained floor-level search trail");
 assert.match(gameSource, /function drawMissingEightBall\(/, "the discovered 8-ball should have a dedicated readable foreground sprite");
 assert.match(gameSource, /drawAuthoredPoolEightBall\(ball\.rackX, ball\.rackY, 9, 1, true\)/, "the recovered authored 8-ball should visibly return to the rack");
-assert.match(gameSource, /const rollOutProgress = smoothstep\(clamp\(/, "the hidden 8-ball should roll into view instead of fading into existence");
+assert.match(gameSource, /const rollOutProgress = clamp\(/, "the hidden 8-ball should use a linear clock for readable reveal phases");
 assert.match(gameSource, /const rollBackProgress = smoothstep\(clamp\(/, "the dog should visibly roll the 8-ball back toward the pool player");
 assert.match(gameSource, /ctx\.rotate\(rotation\)/, "the authored 8-ball sprite should rotate according to its travelled distance");
-assert.match(gameSource, /opacity never changes/, "the chair reveal should use environmental occlusion rather than an opacity fade");
+assert.match(gameSource, /activeQuest\.poolBallStartX = player\.x \+ ball\.dogOffsetX/, "the discovered ball should begin at the dog's far side rather than at a fixed empty-floor coordinate");
+assert.match(gameSource, /const dogCoverEdge = .* \+ dogActionShift \+ ball\.dogCoverHalfWidth/, "the ball reveal should track the dog's moving silhouette");
+assert.match(gameSource, /withWorldClip\(\{ x: dogCoverEdge/, "the dog's body should occlude the ball until it physically rolls clear");
+assert.match(gameSource, /const emergenceProgress = smoothstep\(clamp\(/, "the ball should have a dedicated slow silhouette-emergence phase");
 assert.doesNotMatch(gameSource, /function drawPoolBall\(/, "the rebuilt table should not overlay primitive code-drawn coloured balls");
 assert.doesNotMatch(gameSource, /drawQuestEffectSprite\("guard"/, "the removed lamp-guard objective should not leave visual effects behind");
 assert.match(gameSource, /function drawCinemaQuestVisuals\(/, "the cinema should have scene-native mission choreography");
@@ -560,6 +580,21 @@ assert.doesNotThrow(() => vm.runInContext(`
   drawNPCs(1200);
   for (const kind of ["marshall", "lily", "robin", "barney", "bell", "narrator"]) drawPortrait(kind);
 `, sandbox), "the rooftop cast, Bell, and narrator portraits should render from the unified character system");
+const leapPortraitFrames = JSON.parse(vm.runInContext(`JSON.stringify(
+  ["ted", "marshall", "lily", "robin", "barney"].map((kind) => {
+    const config = kind === "ted" ? visitorPortraitRects[kind] : supportingPortraitRects[kind];
+    const source = portraitSourceRect(config);
+    return { kind, config, source, eyeLine: (config.eyeY - source.y) / source.size };
+  })
+)`, sandbox));
+for (const portrait of leapPortraitFrames) {
+  assert.ok(Number.isFinite(portrait.config.centerX) && Number.isFinite(portrait.config.eyeY), `${portrait.kind} should use an authored face centre and eye anchor`);
+  assert.ok(Math.abs(portrait.eyeLine - 0.46) < 0.006, `${portrait.kind}'s eyes should share the leap cast portrait eye-line`);
+  assert.ok(Math.abs(portrait.source.x + portrait.source.size / 2 - portrait.config.centerX) <= 0.5, `${portrait.kind}'s face should remain horizontally centred`);
+  const atlasWidth = portrait.kind === "ted" ? 1536 : 1774;
+  const atlasHeight = portrait.kind === "ted" ? 1024 : 887;
+  assert.ok(portrait.source.x >= 0 && portrait.source.y >= 0 && portrait.source.x + portrait.source.size <= atlasWidth && portrait.source.y + portrait.source.size <= atlasHeight, `${portrait.kind}'s portrait crop should remain inside its character atlas`);
+}
 const rooftopLayoutSummary = JSON.parse(vm.runInContext(`JSON.stringify({
   playerMaxX: ROOFTOP_LAYOUT.playerMaxX,
   castFootY: ROOFTOP_LAYOUT.castFootY,
@@ -567,12 +602,41 @@ const rooftopLayoutSummary = JSON.parse(vm.runInContext(`JSON.stringify({
   gap: ROOFTOP_LAYOUT.gap,
   jump: ROOFTOP_LAYOUT.jump,
   interactions: ROOFTOP_LAYOUT.interactions,
-  cast: rooftopCastPlan
+  cast: rooftopCastPlan,
+  runFrames: rooftopRunFrameRects,
+  runAsset: assetSources.rooftopRuns,
+  leapTiming: ROOFTOP_LEAP_TIMING,
+  actionDuration: questActionStyles.leap.durations[2]
 })`, sandbox));
 assert.equal(vm.runInContext("SCENES.rooftop.maxX", sandbox), rooftopLayoutSummary.playerMaxX, "rooftop collision should stop the dog on the near roof");
 assert.equal(vm.runInContext("SCENES.rooftop.groundY", sandbox), rooftopLayoutSummary.castFootY, "the dog and rooftop cast should share one paving baseline");
 assert.equal(rooftopLayoutSummary.cartFootY, rooftopLayoutSummary.castFootY, "the cart wheels and character feet should share one paving baseline");
 assert.equal(vm.runInContext("SCENES.rooftop.backgroundMode", sandbox), "width", "the rooftop should preserve its authored horizontal ledge coordinates");
+assert.equal(rooftopLayoutSummary.actionDuration, rooftopLayoutSummary.leapTiming.duration, "the final rooftop action should use the authored cast timing duration");
+assert.ok(rooftopLayoutSummary.actionDuration >= 13000, "the five-person leap should leave enough time for visible run-ups and landings");
+assert.ok(rooftopLayoutSummary.cast.every((actor) => actor.runDuration >= 800), "every rooftop character should receive a deliberately paced run-up");
+assert.ok(rooftopLayoutSummary.cast.every((actor) => {
+  const runSpeed = Math.abs(rooftopLayoutSummary.jump.takeoffX - actor.start) / actor.runDuration;
+  return runSpeed >= 0.075 && runSpeed <= 0.17;
+}), "the cast run-ups should stay within a restrained, readable speed range");
+assert.ok(rooftopLayoutSummary.cast.slice(1).every((actor, index) => {
+  const previous = rooftopLayoutSummary.cast[index];
+  const scheduledStart = previous.startMs + previous.runDuration + rooftopLayoutSummary.leapTiming.jumpDuration + rooftopLayoutSummary.leapTiming.landingPause;
+  return actor.startMs === scheduledStart;
+}), "the next run-up should begin only after the previous landing pause");
+assert.ok(rooftopLayoutSummary.leapTiming.landingPause >= 500, "each landing should receive a clearly visible pause before the next run-up");
+assert.ok(rooftopLayoutSummary.cast.at(-1).startMs + rooftopLayoutSummary.cast.at(-1).runDuration + rooftopLayoutSummary.leapTiming.jumpDuration + rooftopLayoutSummary.cast.at(-1).exitDuration < rooftopLayoutSummary.actionDuration, "Ted's final landing walk should settle before the action closes");
+assert.equal(rooftopLayoutSummary.runAsset, "assets/character-rooftop-runs-v1.png", "the rooftop sequence should load its authored run-cycle atlas");
+assert.ok(Object.values(rooftopLayoutSummary.runFrames).every((frames) => frames.length === 4), "every rooftop character should have a four-frame run cycle");
+const rooftopRunRowOrder = ["ted", "marshall", "robin", "lily", "barney"];
+assert.ok(rooftopRunRowOrder.slice(0, -1).every((kind, index) => {
+  const rowBottom = Math.max(...rooftopLayoutSummary.runFrames[kind].map((frame) => frame.y + frame.height));
+  const nextRowTop = Math.min(...rooftopLayoutSummary.runFrames[rooftopRunRowOrder[index + 1]].map((frame) => frame.y));
+  return rowBottom < nextRowTop;
+}), "run-cycle crop rows should never borrow heads or feet from an adjacent character");
+assert.ok(rooftopLayoutSummary.runFrames.barney.every((frame) => frame.y < 1000 && frame.height >= 190), "Barney's run frames should retain his full head and body");
+assert.match(gameSource, /drawRooftopRunSprite\(actor\.kind, x, y, runTime\)/, "the run-up should render animated frames instead of sliding the jump pose");
+assert.match(gameSource, /questAction\.progress\s*\n\s*: questVisualProgress\(2\)/, "active rooftop leaps should use a linear clock rather than globally eased timing");
 assert.equal(vm.runInContext("SCENES.rooftop.backgroundY", sandbox), 40, "the rooftop background should align its paving surface to the gameplay baseline");
 assert.ok(rooftopLayoutSummary.gap.rightEdge - rooftopLayoutSummary.gap.leftEdge >= 140, "the two rooftops should have a substantial visible gap");
 assert.ok(

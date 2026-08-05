@@ -34,7 +34,10 @@ const POOL_LAYOUT = {
   playerMaxX: 495,
   helper: { x: 620, height: 192 },
   missingBall: {
-    hidingX: 548, foundX: 510, returnX: 570, floorY: 457,
+    hidingX: 453, foundX: 515, returnX: 590, floorY: 457,
+    dogOffsetX: 8, dogCoverHalfWidth: 30, rollClearance: 70,
+    rollStart: 0.08, rollEnd: 0.76,
+    emergenceStart: 0.22, emergenceEnd: 0.78, clearPadding: 4,
     rackX: 848, rackY: 352
   },
   interactions: { wallTray: 330, hidingPlace: 445, returnBall: 495 }
@@ -67,6 +70,12 @@ const ROOFTOP_LAYOUT = {
   jump: { takeoffX: 514, landingX: 672, apex: 78 },
   patioLights: [[753, 309], [779, 313], [804, 316], [829, 318], [855, 320], [881, 320], [907, 319], [933, 317], [960, 314], [988, 310], [1018, 304], [1048, 297]],
   interactions: { runway: 270, landing: 350, signal: 405 }
+};
+const ROOFTOP_LEAP_TIMING = {
+  duration: 13650,
+  jumpDuration: 720,
+  landingPause: 520,
+  runFrameDuration: 165
 };
 const CINEMA_LAYOUT = {
   helper: { x: 118, height: 154 },
@@ -137,6 +146,7 @@ const assetSources = {
   supportingCast: "assets/character-supporting-cast-v2.png",
   bellJump: "assets/character-bell-jump-v1.png",
   rooftopJumps: "assets/character-rooftop-jumps-v1.png",
+  rooftopRuns: "assets/character-rooftop-runs-v1.png",
   rooftopCart: "assets/rooftop-market-cart-v1.png",
   cinemaProjection: "assets/cinema-projection-hail-mary-v1.png",
   projectionist: "assets/character-projectionist-v1.png",
@@ -1092,13 +1102,23 @@ const questActionStyles = {
   cats: { color: "#db9b75", durations: [1350, 1750, 1500], poses: ["emotional", "walk", "emotional"], directions: ["left", "right", "right"] },
   bell: { color: "#b79ac2", durations: [1300, 1700, 2100], poses: ["sit", "emotional", "sit"], directions: ["right", "right", "left"] },
   cinema: { color: "#c6a86b", durations: [1800, 1950, 2350], poses: ["emotional", "emotional", "sit"], directions: ["right", "right", "right"] },
-  leap: { color: "#e5bb68", durations: [1750, 1850, 2600], poses: ["emotional", "emotional", "idle"], directions: ["right", "right", "left"] }
+  leap: { color: "#e5bb68", durations: [1750, 1850, ROOFTOP_LEAP_TIMING.duration], poses: ["emotional", "emotional", "idle"], directions: ["right", "right", "left"] }
 };
 
 function beginQuestAction(step) {
   const style = questActionStyles[activeQuest.id];
   const stepIndex = activeQuest.step;
   const cameraFocus = Number.isFinite(step.cameraFocus) ? step.cameraFocus : step.x;
+  if (activeQuest.id === "pool" && stepIndex === 1) {
+    const ball = POOL_LAYOUT.missingBall;
+    activeQuest.poolBallStartX = player.x + ball.dogOffsetX;
+    activeQuest.poolBallFoundX = clamp(
+      player.x + ball.rollClearance,
+      ball.foundX,
+      ball.returnX - 28
+    );
+    activeQuest.poolBallDogX = player.x;
+  }
   Object.assign(keys, { left: false, right: false, sprint: false });
   player.moving = false;
   player.sprinting = false;
@@ -1732,30 +1752,56 @@ function drawPoolQuestVisuals(time) {
   if (returnProgress < 1) {
     const searchActionProgress = searchingNow ? questAction.progress : 0;
     const returnActionProgress = returningNow ? questAction.progress : 0;
-    const rollOutProgress = smoothstep(clamp((searchActionProgress - 0.08) / 0.68, 0, 1));
+    const rollOutProgress = clamp(
+      (searchActionProgress - ball.rollStart) / (ball.rollEnd - ball.rollStart),
+      0,
+      1
+    );
     const rollBackProgress = smoothstep(clamp(returnActionProgress / 0.72, 0, 1));
     const hasBeenFound = (activeQuest.visualStep || 0) > 1 || searchProgress >= 1;
+    const rollStartX = activeQuest.poolBallStartX ?? ball.hidingX;
+    const discoveredX = activeQuest.poolBallFoundX ?? ball.foundX;
 
     if (returningNow) {
-      const x = ball.foundX + (ball.returnX - ball.foundX) * rollBackProgress;
-      const rotation = (ball.hidingX - ball.foundX + x - ball.foundX) / ballRadius;
+      const x = discoveredX + (ball.returnX - discoveredX) * rollBackProgress;
+      const rotation = (discoveredX - rollStartX + x - discoveredX) / ballRadius;
       const floorRumble = Math.sin(rollBackProgress * Math.PI * 8) * (1 - rollBackProgress) * 0.6;
       drawMissingEightBall(x, ball.floorY - Math.abs(floorRumble), time, 1, rotation);
-    } else if (searchingNow && searchActionProgress >= 0.08) {
-      const x = ball.hidingX + (ball.foundX - ball.hidingX) * rollOutProgress;
-      const rotation = (x - ball.hidingX) / ballRadius;
-      const dislodgeLift = Math.sin(clamp(rollOutProgress * 1.45, 0, 1) * Math.PI) * (1 - rollOutProgress) * 1.4;
-      // The chair hides the ball until its leading edge physically rolls clear;
-      // opacity never changes, so the reveal reads as movement rather than a fade.
-      withWorldClip({ x: ball.foundX - 20, y: ball.floorY - 18, width: 53, height: 22 }, () => {
+    } else if (searchingNow && searchActionProgress >= ball.rollStart) {
+      const dogActionShift = Math.sin(searchActionProgress * Math.PI) * 7;
+      const dogCoverEdge = (activeQuest.poolBallDogX ?? player.x) + dogActionShift + ball.dogCoverHalfWidth;
+      const coveredX = dogCoverEdge - ballRadius - 1;
+      const clearedX = dogCoverEdge + ballRadius + ball.clearPadding;
+      const approachProgress = smoothstep(clamp(rollOutProgress / ball.emergenceStart, 0, 1));
+      const emergenceProgress = smoothstep(clamp(
+        (rollOutProgress - ball.emergenceStart) / (ball.emergenceEnd - ball.emergenceStart),
+        0,
+        1
+      ));
+      const rollAwayProgress = smoothstep(clamp(
+        (rollOutProgress - ball.emergenceEnd) / (1 - ball.emergenceEnd),
+        0,
+        1
+      ));
+      let x;
+      if (rollOutProgress < ball.emergenceStart) {
+        x = rollStartX + (coveredX - rollStartX) * approachProgress;
+      } else if (rollOutProgress < ball.emergenceEnd) {
+        x = coveredX + (clearedX - coveredX) * emergenceProgress;
+      } else {
+        x = clearedX + (discoveredX - clearedX) * rollAwayProgress;
+      }
+      const rotation = (x - rollStartX) / ballRadius;
+      const dislodgeLift = Math.sin(rollOutProgress * Math.PI) * (1 - rollOutProgress) * 1.4;
+      // Quest set pieces render before the dog. This clip keeps the ball fully
+      // hidden on the dog's far side, then reveals only the pixels that have
+      // physically rolled beyond the dog's silhouette.
+      withWorldClip({ x: dogCoverEdge, y: ball.floorY - 18, width: ball.returnX - dogCoverEdge + 24, height: 22 }, () => {
         drawMissingEightBall(x, ball.floorY - dislodgeLift, time, 1, rotation);
       });
-      if (rollOutProgress > 0.48) {
-        drawPixelGlint(x + 3, ball.floorY - 10, Math.sin(rollOutProgress * Math.PI) * 0.48, "#d8c99d");
-      }
     } else if (hasBeenFound) {
-      const settledRotation = (ball.foundX - ball.hidingX) / ballRadius;
-      drawMissingEightBall(ball.foundX, ball.floorY, time, 1, settledRotation);
+      const settledRotation = (discoveredX - rollStartX) / ballRadius;
+      drawMissingEightBall(discoveredX, ball.floorY, time, 1, settledRotation);
     }
   }
 
@@ -2408,22 +2454,62 @@ const supportingCastLayout = {
 };
 
 const rooftopCastPlan = [
-  { kind: "marshall", start: 448, end: 705, delay: 0 },
-  { kind: "robin", start: 332, end: 765, delay: 0.19 },
-  { kind: "barney", start: 272, end: 825, delay: 0.38 },
-  { kind: "lily", start: 390, end: 885, delay: 0.57 },
-  { kind: "ted", start: 208, end: 945, delay: 0.76 }
+  { kind: "marshall", start: 448, end: 705, startMs: 0, runDuration: 800, exitDuration: 420 },
+  { kind: "robin", start: 332, end: 765, startMs: 2040, runDuration: 1200, exitDuration: 520 },
+  { kind: "barney", start: 272, end: 825, startMs: 4480, runDuration: 1500, exitDuration: 850 },
+  { kind: "lily", start: 390, end: 885, startMs: 7220, runDuration: 900, exitDuration: 1180 },
+  { kind: "ted", start: 208, end: 945, startMs: 9360, runDuration: 1850, exitDuration: 1520 }
 ];
 
 function drawRooftopCast(time) {
   if (currentScene !== "rooftop" || activeQuest?.id !== "leap") return;
   const footY = ROOFTOP_LAYOUT.castFootY;
-  const crossing = questVisualProgress(2);
+  // Use the action's linear clock with an authored schedule. Different starting
+  // distances receive different run-up lengths, keeping the cast at a believable
+  // pace while preserving a clear pause between landings and the next takeoff.
+  const crossing = questAction?.questId === "leap" && questAction.stepIndex === 2
+    ? questAction.progress
+    : questVisualProgress(2);
+  const elapsed = crossing * ROOFTOP_LEAP_TIMING.duration;
   rooftopCastPlan.forEach((actor, index) => {
-    const actorProgress = clamp((crossing - actor.delay) / 0.2, 0, 1);
-    drawRooftopLeapActor(actor, actorProgress, footY, time, index);
+    drawRooftopLeapActor(actor, elapsed - actor.startMs, footY, time, index);
   });
 }
+
+const rooftopRunFrameRects = {
+  ted: [
+    { x: 120, y: 33, width: 148, height: 196 },
+    { x: 374, y: 33, width: 159, height: 196 },
+    { x: 652, y: 36, width: 161, height: 193 },
+    { x: 916, y: 35, width: 172, height: 193 }
+  ],
+  marshall: [
+    { x: 112, y: 246, width: 167, height: 213 },
+    { x: 388, y: 248, width: 156, height: 211 },
+    { x: 654, y: 253, width: 172, height: 202 },
+    { x: 934, y: 251, width: 167, height: 208 }
+  ],
+  robin: [
+    { x: 115, y: 486, width: 155, height: 213 },
+    { x: 384, y: 488, width: 153, height: 211 },
+    { x: 647, y: 489, width: 171, height: 207 },
+    { x: 943, y: 489, width: 150, height: 207 }
+  ],
+  lily: [
+    { x: 127, y: 708, width: 134, height: 229 },
+    { x: 392, y: 710, width: 131, height: 227 },
+    { x: 669, y: 715, width: 142, height: 216 },
+    { x: 947, y: 717, width: 132, height: 222 }
+  ],
+  barney: [
+    { x: 117, y: 966, width: 144, height: 206 },
+    { x: 384, y: 966, width: 141, height: 206 },
+    { x: 664, y: 960, width: 156, height: 198 },
+    { x: 935, y: 965, width: 158, height: 196 }
+  ]
+};
+
+const rooftopRunDrawHeights = { ted: 122, marshall: 124, robin: 123, lily: 127, barney: 116 };
 
 const rooftopJumpFrameRects = {
   ted: { x: 58, y: 233, width: 307, height: 325 },
@@ -2435,12 +2521,16 @@ const rooftopJumpFrameRects = {
 
 const rooftopJumpDrawHeights = { ted: 110, marshall: 116, lily: 101, robin: 113, barney: 105 };
 
-function drawRooftopLeapActor(actor, progress, footY, time, index) {
-  if (progress <= 0) {
+function drawRooftopLeapActor(actor, elapsed, footY, time, index) {
+  if (elapsed <= 0) {
     drawRooftopStandingActor(actor.kind, actor.start, footY, time, index);
     return;
   }
-  if (progress >= 1) {
+
+  const jumpStart = actor.runDuration;
+  const landingTime = jumpStart + ROOFTOP_LEAP_TIMING.jumpDuration;
+  const finishTime = landingTime + actor.exitDuration;
+  if (elapsed >= finishTime) {
     drawRooftopStandingActor(actor.kind, actor.end, footY, time, index);
     return;
   }
@@ -2448,32 +2538,61 @@ function drawRooftopLeapActor(actor, progress, footY, time, index) {
   const takeoffX = ROOFTOP_LAYOUT.jump.takeoffX;
   const landingX = ROOFTOP_LAYOUT.jump.landingX;
   let x; let y = footY;
-  if (progress < 0.22) {
-    const run = smoothstep(progress / 0.22);
+  if (elapsed < jumpStart) {
+    const runTime = elapsed;
+    const runProgress = clamp(runTime / actor.runDuration, 0, 1);
+    // A shallow acceleration avoids both the old slide and an abrupt sprint.
+    const run = runProgress * (0.35 + 0.65 * runProgress);
     x = actor.start + (takeoffX - actor.start) * run;
-    y += Math.sin(run * Math.PI * 5) * -3;
     drawPixelContactShadow(x, footY + 1, actor.kind === "marshall" ? 46 : 34, 0.24);
-  } else if (progress < 0.84) {
-    const leap = smoothstep((progress - 0.22) / 0.62);
+    drawRooftopRunSprite(actor.kind, x, y, runTime);
+    return;
+  } else if (elapsed < landingTime) {
+    const leap = smoothstep((elapsed - jumpStart) / ROOFTOP_LEAP_TIMING.jumpDuration);
     x = takeoffX + (landingX - takeoffX) * leap;
     y = footY - Math.sin(leap * Math.PI) * ROOFTOP_LAYOUT.jump.apex;
     if (leap < 0.14) drawPixelContactShadow(takeoffX, footY + 1, 30 * (1 - leap / 0.14), 0.14);
     if (leap > 0.82) drawPixelContactShadow(landingX, footY + 1, 30 * ((leap - 0.82) / 0.18), 0.16);
+    drawRooftopJumpSprite(actor.kind, x, y);
   } else {
-    const settle = smoothstep((progress - 0.84) / 0.16);
+    const exitTime = elapsed - landingTime;
+    const settle = smoothstep(exitTime / actor.exitDuration);
     x = landingX + (actor.end - landingX) * settle;
-    y = footY - Math.sin(settle * Math.PI) * 4;
     drawPixelContactShadow(x, footY + 1, actor.kind === "marshall" ? 44 : 32, 0.24);
+    drawRooftopRunSprite(actor.kind, x, y, jumpStart + exitTime);
   }
-  drawRooftopJumpSprite(actor.kind, x, y);
 
-  if (progress > 0.8 && progress < 0.94) {
-    const impact = Math.sin(((progress - 0.8) / 0.14) * Math.PI);
+  const timeSinceLanding = elapsed - landingTime;
+  if (timeSinceLanding > 0 && timeSinceLanding < 260) {
+    const impact = Math.sin((timeSinceLanding / 260) * Math.PI);
     ctx.save(); ctx.globalAlpha = impact * 0.34; ctx.fillStyle = "#9b8b76";
     ctx.fillRect(Math.round(landingX - 25), Math.round(footY - 5 - impact * 3), 3, 2);
     ctx.fillRect(Math.round(landingX + 20), Math.round(footY - 3 - impact * 2), 2, 2);
     ctx.restore();
   }
+}
+
+function drawRooftopRunSprite(kind, x, footY, elapsed) {
+  const frames = rooftopRunFrameRects[kind];
+  if (!assets.rooftopRuns || !frames) {
+    drawRooftopStandingActor(kind, x, footY, elapsed, 0);
+    return;
+  }
+  const frame = frames[Math.floor(elapsed / ROOFTOP_LEAP_TIMING.runFrameDuration) % frames.length];
+  const tallestFrame = Math.max(...frames.map((candidate) => candidate.height));
+  const sourceScale = rooftopRunDrawHeights[kind] / tallestFrame;
+  const drawWidth = frame.width * sourceScale;
+  const drawHeight = frame.height * sourceScale;
+
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(footY));
+  ctx.filter = "saturate(.88) brightness(.92) contrast(1.05)";
+  ctx.drawImage(
+    assets.rooftopRuns,
+    frame.x, frame.y, frame.width, frame.height,
+    -drawWidth / 2, -drawHeight, drawWidth, drawHeight
+  );
+  ctx.restore();
 }
 
 function drawRooftopStandingActor(kind, x, footY, time, index) {
@@ -2890,17 +3009,32 @@ const visitorPortraitRects = {
   poolplayer: { x: 710, y: 80, size: 126 },
   catkeeper: { x: 1085, y: 84, size: 128 },
   bellkeeper: { x: 306, y: 542, size: 126 },
-  ted: { x: 674, y: 541, size: 132 },
+  // The leap portraits share an authored eye-line. Ted's previous crop began
+  // too far left, leaving the fox muzzle pressed against the right edge.
+  ted: { centerX: 770, eyeY: 606, size: 144 },
   florist: { x: 1080, y: 533, size: 134 }
 };
 
 const supportingPortraitRects = {
-  marshall: { x: 145, y: 145, size: 165 },
-  lily: { x: 502, y: 127, size: 159 },
-  robin: { x: 820, y: 190, size: 160 },
-  barney: { x: 1160, y: 245, size: 155 },
+  marshall: { centerX: 234, eyeY: 220, size: 180 },
+  // Lily's ears may leave the top of the portrait naturally; keeping her eyes
+  // on the cast eye-line prevents the face and muzzle being crushed at bottom.
+  lily: { centerX: 574, eyeY: 260, size: 190 },
+  robin: { centerX: 894, eyeY: 262, size: 180 },
+  barney: { centerX: 1230, eyeY: 302, size: 180 },
   bell: { x: 1435, y: 443, size: 165 }
 };
+
+const PORTRAIT_EYE_LINE = 0.46;
+
+function portraitSourceRect(portrait) {
+  if (!Number.isFinite(portrait.centerX) || !Number.isFinite(portrait.eyeY)) return portrait;
+  return {
+    x: Math.round(portrait.centerX - portrait.size / 2),
+    y: Math.round(portrait.eyeY - portrait.size * PORTRAIT_EYE_LINE),
+    size: portrait.size
+  };
+}
 
 function drawPortrait(kind) {
   portraitCtx.clearRect(0, 0, 112, 112);
@@ -2943,6 +3077,7 @@ function drawPortrait(kind) {
   }
   const visitorPortrait = visitorPortraitRects[kind];
   if (visitorPortrait && assets.visitors) {
+    const source = portraitSourceRect(visitorPortrait);
     const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
     gradient.addColorStop(0, "#685066");
     gradient.addColorStop(1, "#30283e");
@@ -2952,7 +3087,7 @@ function drawPortrait(kind) {
     portraitCtx.filter = "saturate(.94) brightness(.98)";
     portraitCtx.drawImage(
       assets.visitors,
-      visitorPortrait.x, visitorPortrait.y, visitorPortrait.size, visitorPortrait.size,
+      source.x, source.y, source.size, source.size,
       0, 0, 112, 112
     );
     portraitCtx.restore();
@@ -2960,6 +3095,7 @@ function drawPortrait(kind) {
   }
   const supportingPortrait = supportingPortraitRects[kind];
   if (supportingPortrait && assets.supportingCast) {
+    const source = portraitSourceRect(supportingPortrait);
     const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
     gradient.addColorStop(0, "#5d536c");
     gradient.addColorStop(1, "#29283d");
@@ -2969,7 +3105,7 @@ function drawPortrait(kind) {
     portraitCtx.filter = "saturate(.94) brightness(.98) contrast(1.03)";
     portraitCtx.drawImage(
       assets.supportingCast,
-      supportingPortrait.x, supportingPortrait.y, supportingPortrait.size, supportingPortrait.size,
+      source.x, source.y, source.size, source.size,
       0, 0, 112, 112
     );
     portraitCtx.restore();
