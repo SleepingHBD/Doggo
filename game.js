@@ -1,7 +1,7 @@
 "use strict";
 
 const canvas = document.querySelector("#game");
-const ctx = canvas.getContext("2d");
+const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
 const portraitCanvas = document.querySelector("#portrait-canvas");
 const portraitCtx = portraitCanvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
@@ -19,6 +19,7 @@ const ui = {
   promptLabel: document.querySelector("#interact-label"), promptKicker: document.querySelector("#interact-kicker"),
   count: document.querySelector("#flower-count"), pips: document.querySelector("#bloom-pips"),
   quest: document.querySelector("#quest-text"), touch: document.querySelector("#touch-controls"),
+  touchDoor: document.querySelector(".touch-door"), touchAction: document.querySelector(".touch-action"),
   fade: document.querySelector("#fade"), chapter: document.querySelector("#chapter-label"),
   status: document.querySelector("#status-text"), endingTitle: document.querySelector("#ending-title"),
   endingCopy: document.querySelector("#ending-copy"), endingMemory: document.querySelector("#ending-memory"),
@@ -27,8 +28,26 @@ const ui = {
 
 const VIEW_WIDTH = 960;
 const TOTAL_QUESTS = 6;
+const coarsePointerQuery = window.matchMedia?.("(pointer: coarse)");
+const reducedMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+const runtimeNavigator = globalThis.navigator || {};
+const isTouchRuntime = Boolean(coarsePointerQuery?.matches || (runtimeNavigator.maxTouchPoints || 0) > 0);
+const lowPowerRuntime = Boolean(
+  reducedMotionQuery?.matches || runtimeNavigator.connection?.saveData ||
+  (runtimeNavigator.deviceMemory && runtimeNavigator.deviceMemory <= 4) ||
+  (runtimeNavigator.hardwareConcurrency && runtimeNavigator.hardwareConcurrency <= 4)
+);
+const INTERACTION_RADIUS_BONUS = isTouchRuntime ? 16 : 0;
+const MAX_WORLD_PARTICLES = lowPowerRuntime ? 38 : isTouchRuntime ? 64 : 120;
+const AMBIENT_PARTICLE_SCALE = lowPowerRuntime ? 0.4 : isTouchRuntime ? 0.72 : 1;
+const TARGET_FRAME_INTERVAL = lowPowerRuntime ? 1000 / 30 : 0;
+const DEFERRED_ASSET_CONCURRENCY = isTouchRuntime ? 2 : 4;
 const DOG_ART_SCALE = 0.92;
 const DOG_RENDER_HEIGHTS = Object.freeze({ static: 93, walk: 90, run: 85 });
+// The bespoke pool poses are drawn with more foreshortening and a larger head
+// than the side-on master atlas. This optical correction keeps the dog's body
+// volume consistent when the search animation takes over from normal movement.
+const POOL_QUEST_DOG_SCALE = 0.82;
 const POOL_BALL_STANDARD_INTERACT_BEAT = 0.1;
 const ROOFTOP_CHARACTER_SCALE = 0.83;
 const POOL_LAYOUT = {
@@ -171,16 +190,16 @@ const assetSources = {
   poolEightBall: "assets/pool-eight-ball-v1.png",
   poolPlayerSequence: "assets/character-pool-player-sequence-v2.png",
   poolPlayerCarry: "assets/character-pool-player-carry-walk-v1.png",
-  poolDogActions: "assets/dog-pool-search-actions-v1.png",
+  poolDogActions: "assets/dog-pool-search-actions-v3.png",
   catInside: "assets/interior-cat-cafe-benchmark-v3.png",
   bellHome: "assets/interior-bell-home-benchmark-v5.png",
   rooftop: "assets/rooftop-benchmark-v5.png",
   cinemaInside: "assets/interior-cinema-benchmark-v2.png",
-  dogMaltipoo: "assets/dog-maltipoo-authored-v2.png",
-  dogMaltese: "assets/dog-maltese-authored-v2.png",
+  dogMaltipoo: "assets/dog-maltipoo-authored-v4.png",
+  dogMaltese: "assets/dog-maltese-authored-v4.png",
   visitors: "assets/character-visitors-authored-v2.png",
   visitorWalk: "assets/character-visitors-walk-v2.png",
-  traveller: "assets/character-traveller-authored-v2.png",
+  traveller: "assets/character-traveller-authored-v3.png",
   supportingCast: "assets/character-supporting-cast-v2.png",
   bellJump: "assets/character-bell-jump-v1.png",
   rooftopJumps: "assets/character-rooftop-jumps-v1.png",
@@ -257,10 +276,15 @@ let endingFlower = null;
 let activeQuest = null;
 let questAction = null;
 let dialogue = null;
-let lastTime = 0;
+let lastFrameTime = 0;
+let lastRenderedFrame = 0;
+let gameTime = 0;
+let animationFrameId = null;
+let pageVisible = !document.hidden;
 let audioMuted = false;
 let audioContext = null;
 let menuIndex = 0;
+const activeTouchPointers = new Map();
 
 const flowerData = {
   peony: { name: "Coral Peony", short: "Peony", color: "#ef8c83", symbol: "✿", anchor: [283, 318], stand: 283 },
@@ -591,7 +615,9 @@ const questDefinitions = [
   }
 ];
 
-Promise.all(Object.entries(assetSources).map(([key, source]) => loadImage(source).then((image) => { assets[key] = image; })))
+const criticalAssetKeys = Object.freeze(["bench", "dogMaltipoo", "dogMaltese"]);
+
+Promise.all(criticalAssetKeys.map((key) => loadAsset(key, "high")))
   .then(() => {
     drawSelectionPreviews();
     ui.frame.classList.remove("is-loading");
@@ -599,6 +625,7 @@ Promise.all(Object.entries(assetSources).map(([key, source]) => loadImage(source
     setTimeout(() => {
       ui.loading.hidden = true; ui.title.hidden = false; state = "title";
       setMenuSelection(0);
+      scheduleDeferredAssetLoading();
     }, 550);
   })
   .catch(() => { ui.loading.innerHTML = "<p>The evening could not be opened. Please refresh the page.</p>"; });
@@ -642,14 +669,37 @@ document.querySelectorAll("[data-key]").forEach((button) => {
   const key = button.dataset.key;
   const press = (event) => {
     event.preventDefault();
+    initAudio();
+    button.setPointerCapture?.(event.pointerId);
+    button.classList.add("is-pressed");
     if (key === "action") performAction();
     else if (key === "up") handleUp();
-    else keys[key] = true;
+    else {
+      activeTouchPointers.set(event.pointerId, key);
+      keys[key] = true;
+    }
   };
-    const release = (event) => { event.preventDefault(); if (["left", "right", "sprint"].includes(key)) keys[key] = false; };
-  button.addEventListener("pointerdown", press); button.addEventListener("pointerup", release);
-  button.addEventListener("pointercancel", release); button.addEventListener("pointerleave", release);
+  const release = (event) => {
+    event.preventDefault();
+    button.classList.remove("is-pressed");
+    if (!["left", "right", "sprint"].includes(key)) return;
+    activeTouchPointers.delete(event.pointerId);
+    keys[key] = [...activeTouchPointers.values()].includes(key);
+  };
+  button.addEventListener("pointerdown", press);
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", release);
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
 });
+
+window.addEventListener("blur", releaseAllInputs);
+window.addEventListener("pagehide", releaseAllInputs);
+window.addEventListener("resize", updateMobileViewport, { passive: true });
+window.addEventListener("orientationchange", updateMobileViewport, { passive: true });
+document.addEventListener?.("visibilitychange", handleVisibilityChange);
+coarsePointerQuery?.addEventListener?.("change", updateMobileViewport);
+updateMobileViewport();
 
 function performAction() {
   if (state === "dialogue") advanceDialogue();
@@ -692,13 +742,80 @@ function handleMenuKeydown(event) {
   return false;
 }
 
-function loadImage(source) {
+function loadImage(source, priority = "auto") {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.addEventListener("load", () => resolve(image));
+    image.decoding = "async";
+    image.fetchPriority = priority;
+    image.addEventListener("load", () => {
+      if (!image.decode) { resolve(image); return; }
+      image.decode().catch(() => {}).finally(() => resolve(image));
+    });
     image.addEventListener("error", reject);
     image.src = source;
   });
+}
+
+function loadAsset(key, priority = "auto") {
+  if (assets[key]) return Promise.resolve(assets[key]);
+  const source = assetSources[key];
+  if (!source) return Promise.reject(new Error(`Unknown asset: ${key}`));
+  return loadImage(source, priority).then((image) => {
+    assets[key] = image;
+    return image;
+  });
+}
+
+function scheduleDeferredAssetLoading() {
+  const begin = () => {
+    const keysToLoad = Object.keys(assetSources).filter((key) => !criticalAssetKeys.includes(key));
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < keysToLoad.length) {
+        const key = keysToLoad[cursor++];
+        try { await loadAsset(key); }
+        catch (error) { console.warn(`Could not preload ${key}`, error); }
+      }
+    };
+    return Promise.all(Array.from({ length: DEFERRED_ASSET_CONCURRENCY }, worker));
+  };
+  if (window.requestIdleCallback) window.requestIdleCallback(begin, { timeout: 900 });
+  else setTimeout(begin, 80);
+}
+
+function releaseAllInputs() {
+  Object.assign(keys, { left: false, right: false, sprint: false });
+  activeTouchPointers.clear();
+  document.querySelectorAll("[data-key]").forEach((button) => button.classList.remove("is-pressed"));
+}
+
+function updateMobileViewport() {
+  document.documentElement?.style.setProperty("--app-height", `${window.innerHeight || 540}px`);
+  document.documentElement?.classList.toggle("is-touch-runtime", isTouchRuntime);
+  document.documentElement?.classList.toggle("is-low-power", lowPowerRuntime);
+  const titleFootnote = document.querySelector(".title-footnote");
+  const menuControls = document.querySelector(".menu-controls");
+  const tutorialHint = document.querySelector("#tutorial small");
+  if (isTouchRuntime) {
+    if (titleFootnote) titleFootnote.textContent = "Tap to begin · checkpoints use Momo";
+    if (menuControls) menuControls.textContent = "Tap a companion to continue";
+    if (tutorialHint) tutorialHint.textContent = "Use the on-screen controls · hold RUN while moving to sprint";
+  }
+}
+
+function handleVisibilityChange() {
+  pageVisible = !document.hidden;
+  releaseAllInputs();
+  if (!pageVisible) {
+    if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+    audioContext?.suspend?.()?.catch?.(() => {});
+    return;
+  }
+  lastFrameTime = 0;
+  lastRenderedFrame = 0;
+  if (!audioMuted) audioContext?.resume?.()?.catch?.(() => {});
+  startGameLoop();
 }
 
 function chooseDog(type) {
@@ -785,7 +902,7 @@ function jumpToCheckpoint(checkpointId) {
     currentScene = "tennisCourt";
     spawnX = 555;
     checkpointLabel = "TENNIS COURT";
-    tennisEncounter.rallyEpoch = performance.now();
+    tennisEncounter.rallyEpoch = gameTime;
   } else if (questIndex >= 0) {
     const quest = questDefinitions[questIndex];
     applyCheckpointProgress(questIndex);
@@ -865,7 +982,7 @@ function checkJourneyTransitions() {
   if (currentScene === "bench" && !journey.returning && player.x >= SCENES.bench.maxX - 2 && keys.right) {
     switchScene("tennisCourt", 125, () => {
       journey.leftBench = true;
-      tennisEncounter.rallyEpoch ||= performance.now();
+      tennisEncounter.rallyEpoch ||= gameTime;
       ui.status.textContent = "Floodlights warm the courts after the rain";
       showLocation("THE EVENING ROUTE", "The Neighbourhood Courts", "A late rally carries over the fence");
       updateHUD(); resumePlay();
@@ -948,7 +1065,7 @@ function checkJourneyTransitions() {
 }
 
 function getActiveDoor() {
-  return getAvailableDoors().find((door) => Math.abs(player.x - door.x) <= door.radius) || null;
+  return getAvailableDoors().find((door) => Math.abs(player.x - door.x) <= interactionRadius(door.radius)) || null;
 }
 
 function getAvailableDoors() {
@@ -1045,7 +1162,7 @@ function interactTennisBall() {
   if (currentScene !== "tennisCourt") return;
   if (tennisEncounter.stage !== "loose") return;
   tennisEncounter.stage = "returning";
-  tennisEncounter.startedAt = performance.now();
+  tennisEncounter.startedAt = gameTime;
   nearbyTennisBall = false;
   Object.assign(keys, { left: false, right: false, sprint: false });
   player.direction = "right";
@@ -1177,7 +1294,7 @@ function beginTravellerDeparture() {
   travellerEncounter.departureX = travellerEncounter.x;
   travellerEncounter.cameraX = camera.x;
   travellerEncounter.departureTargetX = camera.x + VIEW_WIDTH + 135;
-  travellerEncounter.motionStartedAt = performance.now();
+  travellerEncounter.motionStartedAt = gameTime;
   travellerEncounter.motionDuration = clamp(((travellerEncounter.departureTargetX - travellerEncounter.x) / 205) * 1000, 1900, 3600);
   travellerEncounter.walkFrame = 0;
   travellerEncounter.lastStep = -1;
@@ -1209,7 +1326,7 @@ function startObstacle(flower) {
     visitorTargetX,
     visitorX: visitorStartX,
     visitorCameraX: camera.x,
-    visitorMotionStartedAt: performance.now(),
+    visitorMotionStartedAt: gameTime,
     visitorMotionDuration: clamp((travelDistance / 230) * 1000, 1200, 3600),
     visitorWalkFrame: 0,
     visitorLastStep: -1
@@ -1241,7 +1358,7 @@ function beginVisitorDeparture() {
   activeQuest.visitorDirection = "left";
   activeQuest.visitorStartX = activeQuest.visitorX;
   activeQuest.visitorTargetX = activeQuest.visitorCameraX - 110;
-  activeQuest.visitorMotionStartedAt = performance.now();
+  activeQuest.visitorMotionStartedAt = gameTime;
   activeQuest.visitorMotionDuration = clamp((Math.abs(activeQuest.visitorTargetX - activeQuest.visitorStartX) / 250) * 1000, 1050, 3400);
   activeQuest.visitorWalkFrame = 0;
   activeQuest.visitorLastStep = -1;
@@ -1295,7 +1412,7 @@ function beginQuestAction(step) {
   questAction = {
     questId: activeQuest.id,
     stepIndex,
-    startedAt: performance.now(),
+    startedAt: gameTime,
     duration: style.durations[stepIndex] || 1500,
     progress: 0,
     midpointPlayed: false,
@@ -1348,7 +1465,7 @@ function spawnQuestActionBurst(x, y, color, count) {
   const moteCount = Math.min(7, Math.max(4, Math.round(count / 3)));
   for (let index = 0; index < moteCount; index += 1) {
     const spread = index - (moteCount - 1) / 2;
-    particles.push({
+    pushWorldParticle({
       x: x + spread * 4, y: y + Math.abs(spread) * 2,
       vx: spread * 3,
       vy: -10 - (index % 3) * 4,
@@ -1451,7 +1568,7 @@ function showDialogue(lines, onComplete) {
 
 function presentLine() {
   const item = dialogue.lines[dialogue.index];
-  dialogue.typed = 0; dialogue.complete = false; dialogue.lastType = performance.now();
+  dialogue.typed = 0; dialogue.complete = false; dialogue.lastType = gameTime;
   ui.speaker.textContent = item.speaker; ui.text.textContent = "";
   ui.choices.hidden = true; ui.choices.innerHTML = ""; ui.continueButton.hidden = true;
   ui.portraitMark.textContent = item.portrait === "narrator" ? "✦" : "◆";
@@ -1573,7 +1690,7 @@ function update(delta, time) {
     nearbyFlower = null; nearbyMemory = null; nearbyQuestStep = null; nearbyReunion = false;
     nearbyTraveller = false; nearbyTravelTag = false; nearbyTennisBall = false;
     if (currentScene === "market" && !activeQuest) {
-      let nearest = 85;
+      let nearest = interactionRadius(85);
       flowers.forEach((flower) => {
         if (!flower.active) return;
         const distance = Math.abs(player.x - flower.stand);
@@ -1581,7 +1698,7 @@ function update(delta, time) {
       });
     }
     if (!journey.returning && !activeQuest) {
-      let nearest = 64;
+      let nearest = interactionRadius(64);
       memorySpots.forEach((spot) => {
         if (spot.seen || spot.scene !== currentScene) return;
         const distance = Math.abs(player.x - spot.x);
@@ -1589,24 +1706,25 @@ function update(delta, time) {
       });
     }
     if (!journey.returning && !activeQuest && currentScene === travellerEncounter.scene) {
-      if (["waiting", "returning"].includes(travellerEncounter.stage) && Math.abs(player.x - travellerEncounter.x) < 68) {
+      if (["waiting", "returning"].includes(travellerEncounter.stage) && Math.abs(player.x - travellerEncounter.x) < interactionRadius(68)) {
         nearbyTraveller = true;
       }
-      if (travellerEncounter.stage === "searching" && Math.abs(player.x - travellerEncounter.tagX) < 58) {
+      if (travellerEncounter.stage === "searching" && Math.abs(player.x - travellerEncounter.tagX) < interactionRadius(58)) {
         nearbyTravelTag = true;
       }
     }
     if (!journey.returning && !activeQuest && currentScene === "tennisCourt" && tennisEncounter.stage === "loose") {
-      nearbyTennisBall = Math.abs(player.x - tennisEncounter.ballX) < TENNIS_LAYOUT.interactionRadius;
+      nearbyTennisBall = Math.abs(player.x - tennisEncounter.ballX) < interactionRadius(TENNIS_LAYOUT.interactionRadius);
     }
     if (activeQuest && activeQuest.stage === "solve" && currentScene === activeQuest.interior) {
       const step = activeQuest.steps[activeQuest.step];
-      if (step && Math.abs(player.x - step.x) < 70) nearbyQuestStep = step;
+      if (step && Math.abs(player.x - step.x) < interactionRadius(70)) nearbyQuestStep = step;
     }
-    if (journey.returning && currentScene === "bench" && Math.abs(player.x - 820) < 88) nearbyReunion = true;
+    if (journey.returning && currentScene === "bench" && Math.abs(player.x - 820) < interactionRadius(88)) nearbyReunion = true;
 
     const door = getActiveDoor();
-    ui.prompt.hidden = !door && !nearbyQuestStep && !nearbyReunion && !nearbyTravelTag && !nearbyTraveller && !nearbyTennisBall && !nearbyMemory && !nearbyFlower;
+    const touchActionAvailable = Boolean(nearbyQuestStep || nearbyReunion || nearbyTravelTag || nearbyTraveller || nearbyTennisBall || nearbyMemory || nearbyFlower);
+    ui.prompt.hidden = !door && !touchActionAvailable;
     if (door) {
       ui.promptKey.textContent = "↑";
       if (door.kind === "marketExit") ui.promptKicker.textContent = "Return to the evening street";
@@ -1644,7 +1762,8 @@ function update(delta, time) {
       ui.promptKicker.textContent = count === 1 ? "The market has gone quiet" : "A flower catches your eye";
       ui.promptLabel.textContent = count === 1 ? `Choose the ${nearbyFlower.name}` : `Inspect the ${nearbyFlower.name}`;
     }
-  } else { player.moving = false; player.sprinting = false; ui.prompt.hidden = true; }
+    syncTouchAvailability(door, touchActionAvailable);
+  } else { player.moving = false; player.sprinting = false; ui.prompt.hidden = true; syncTouchAvailability(null, false); }
 
   if (["visitorArrival", "visitorDeparture"].includes(state)) updateVisitorSequence(time);
   if (state === "travellerDeparture") updateTravellerSequence(time);
@@ -1664,8 +1783,8 @@ function update(delta, time) {
     if (p.life <= 0) particles.splice(i, 1);
   }
   const ambient = ambientProfiles[currentScene] || ambientProfiles.bench;
-  if (Math.random() < delta * ambient.rate) {
-    particles.push({
+  if (particles.length < MAX_WORLD_PARTICLES && Math.random() < delta * ambient.rate * AMBIENT_PARTICLE_SCALE) {
+    pushWorldParticle({
       x: camera.x + Math.random() * 960, y: 90 + Math.random() * 310,
       vx: ambient.vx[0] + Math.random() * (ambient.vx[1] - ambient.vx[0]),
       vy: ambient.vy[0] + Math.random() * (ambient.vy[1] - ambient.vy[0]), life: 8,
@@ -1774,11 +1893,11 @@ function drawPoolQuestDog(time, x, footY) {
   // but the dog's head, torso and legs never inflate or shrink.
   const standingSourceHeights = [190.5, 193.5];
   const frameBaselines = [
-    [343, 343, 349, 348, 352, 348],
-    [297, 297, 303, 301, 305, 302]
+    [346, 348, 351, 350, 354, 351],
+    [300, 301, 305, 304, 309, 305]
   ];
   const sceneScale = SCENES[currentScene].playerScale || 1;
-  const interactionTargetHeight = DOG_RENDER_HEIGHTS.static * DOG_ART_SCALE * sceneScale;
+  const interactionTargetHeight = DOG_RENDER_HEIGHTS.static * DOG_ART_SCALE * sceneScale * POOL_QUEST_DOG_SCALE;
   const scale = interactionTargetHeight / standingSourceHeights[row];
   const baseline = frameBaselines[row][frame];
   const drawX = x + reachShift;
@@ -2423,7 +2542,9 @@ function drawCinemaProjection(focusProgress, signalProgress, time) {
     ctx.fillStyle = "#8c9290";
     ctx.fillRect(screen.x, screen.y, screen.width, screen.height);
     ctx.globalAlpha = imageAlpha;
-    ctx.filter = `blur(${blur.toFixed(2)}px) saturate(${0.48 + signalProgress * 0.38}) brightness(${0.72 + signalProgress * 0.28}) contrast(1.04)`;
+    ctx.filter = lowPowerRuntime
+      ? `saturate(${0.48 + signalProgress * 0.38}) brightness(${0.72 + signalProgress * 0.28}) contrast(1.04)`
+      : `blur(${blur.toFixed(2)}px) saturate(${0.48 + signalProgress * 0.38}) brightness(${0.72 + signalProgress * 0.28}) contrast(1.04)`;
     drawImageCoverInRect(assets.cinemaProjection, screen.x, screen.y, screen.width, screen.height);
     ctx.filter = "none";
     ctx.globalAlpha = focusProgress * 0.045;
@@ -2510,7 +2631,7 @@ function drawMemoryProps(time) {
   memorySpots.filter((spot) => spot.scene === currentScene).forEach((spot, index) => {
     const distance = Math.abs(player.x - spot.x);
     if (!spot.seen && state === "playing" && distance < 175) {
-      drawWorldIndicator(spot.x, SCENES[currentScene].groundY - 116, "E", time + index * 230, distance < 64);
+      drawWorldIndicator(spot.x, SCENES[currentScene].groundY - 116, "E", time + index * 230, distance < interactionRadius(64));
     }
   });
 }
@@ -2521,12 +2642,12 @@ function drawTravellerHints(time) {
     drawTravelTag(travellerEncounter.tagX, SCENES[currentScene].groundY - 5, time);
     const distance = Math.abs(player.x - travellerEncounter.tagX);
     if (state === "playing" && distance < 180) {
-      drawWorldIndicator(travellerEncounter.tagX, SCENES[currentScene].groundY - 102, "E", time + 170, distance < 58);
+      drawWorldIndicator(travellerEncounter.tagX, SCENES[currentScene].groundY - 102, "E", time + 170, distance < interactionRadius(58));
     }
   }
   if (!["waiting", "returning"].includes(travellerEncounter.stage) || state !== "playing") return;
   const distance = Math.abs(player.x - travellerEncounter.x);
-  if (distance < 185) drawWorldIndicator(travellerEncounter.x, SCENES[currentScene].groundY - 174, "E", time, distance < 68);
+  if (distance < 185) drawWorldIndicator(travellerEncounter.x, SCENES[currentScene].groundY - 174, "E", time, distance < interactionRadius(68));
 }
 
 function drawTravelTag(x, footY, time) {
@@ -2555,7 +2676,7 @@ function drawDoorHints(time) {
   getAvailableDoors().forEach((door, index) => {
     const distance = Math.abs(player.x - door.x);
     if (distance < door.radius + 115) {
-      drawWorldIndicator(door.x, SCENES[currentScene].groundY - 132, "↑", time + index * 190, distance <= door.radius);
+      drawWorldIndicator(door.x, SCENES[currentScene].groundY - 132, "↑", time + index * 190, distance <= interactionRadius(door.radius));
     }
   });
 }
@@ -2564,7 +2685,7 @@ function drawQuestHint(time) {
   if (state !== "playing" || !activeQuest || activeQuest.stage !== "solve" || currentScene !== activeQuest.interior) return;
   const step = activeQuest.steps[activeQuest.step];
   if (!step) return;
-  drawWorldIndicator(step.x, SCENES[currentScene].groundY - 116, "E", time, Math.abs(player.x - step.x) < 70);
+  drawWorldIndicator(step.x, SCENES[currentScene].groundY - 116, "E", time, Math.abs(player.x - step.x) < interactionRadius(70));
 }
 
 function drawWorldIndicator(x, y, key, time, active) {
@@ -3221,16 +3342,16 @@ function drawBenchCompanion(time) {
 }
 
 const travellerWalkFrameRects = [
-  { x: 40, y: 226, width: 233, height: 310 },
-  { x: 339, y: 226, width: 234, height: 310 },
-  { x: 647, y: 226, width: 243, height: 310 },
-  { x: 966, y: 226, width: 228, height: 310 }
+  { x: 39, y: 219, width: 237, height: 324 },
+  { x: 336, y: 219, width: 238, height: 324 },
+  { x: 644, y: 219, width: 245, height: 324 },
+  { x: 962, y: 219, width: 232, height: 324 }
 ];
 const travellerPoseRects = [
-  { x: 67, y: 660, width: 155, height: 322 },
-  { x: 387, y: 665, width: 126, height: 322 },
-  { x: 637, y: 733, width: 224, height: 255 },
-  { x: 968, y: 664, width: 210, height: 327 }
+  { x: 66, y: 663, width: 159, height: 326 },
+  { x: 386, y: 665, width: 129, height: 329 },
+  { x: 635, y: 738, width: 226, height: 256 },
+  { x: 963, y: 665, width: 216, height: 333 }
 ];
 
 function drawTravellerEncounter(time) {
@@ -3409,39 +3530,54 @@ function dogSceneFilter() {
 const dogMasterFrameRects = {
   maltipoo: {
     static: [
-      { x:68,y:161,width:190,height:166 }, { x:322,y:138,width:183,height:189 },
-      { x:571,y:197,width:208,height:130 }, { x:828,y:151,width:147,height:175 },
-      { x:1049,y:162,width:177,height:165 }, { x:1288,y:161,width:191,height:166 }
+      { x:64,y:118,width:201,height:214 }, { x:320,y:108,width:188,height:224 },
+      { x:568,y:194,width:220,height:140 }, { x:820,y:116,width:161,height:218 },
+      { x:1039,y:127,width:194,height:207 }, { x:1277,y:128,width:205,height:206 }
     ],
     walk: [
-      { x:49,y:456,width:219,height:153 }, { x:314,y:457,width:213,height:152 },
-      { x:571,y:460,width:199,height:149 }, { x:806,y:456,width:209,height:153 },
-      { x:1052,y:461,width:206,height:149 }, { x:1291,y:460,width:208,height:149 }
+      { x:47,y:428,width:227,height:187 }, { x:312,y:428,width:222,height:187 },
+      { x:566,y:428,width:215,height:188 }, { x:803,y:428,width:218,height:188 },
+      { x:1049,y:429,width:216,height:186 }, { x:1288,y:435,width:217,height:180 }
     ],
     run: [
-      { x:52,y:734,width:181,height:140 }, { x:274,y:723,width:214,height:152 },
-      { x:516,y:724,width:245,height:129 }, { x:794,y:743,width:209,height:133 },
-      { x:1057,y:743,width:188,height:132 }, { x:1283,y:737,width:215,height:138 }
+      { x:49,y:707,width:189,height:176 }, { x:271,y:698,width:226,height:185 },
+      { x:512,y:698,width:253,height:166 }, { x:787,y:706,width:221,height:180 },
+      { x:1051,y:711,width:199,height:174 }, { x:1276,y:706,width:226,height:181 }
     ]
   },
   maltese: {
     static: [
-      { x:69,y:160,width:186,height:168 }, { x:324,y:144,width:186,height:184 },
-      { x:571,y:201,width:200,height:127 }, { x:828,y:150,width:141,height:178 },
-      { x:1047,y:157,width:173,height:171 }, { x:1289,y:157,width:184,height:171 }
+      { x:67,y:133,width:205,height:200 }, { x:327,y:131,width:203,height:202 },
+      { x:572,y:203,width:218,height:130 }, { x:825,y:132,width:164,height:201 },
+      { x:1046,y:145,width:188,height:188 }, { x:1289,y:143,width:189,height:190 }
     ],
     walk: [
-      { x:50,y:453,width:213,height:156 }, { x:316,y:456,width:207,height:153 },
-      { x:571,y:458,width:195,height:151 }, { x:807,y:456,width:203,height:153 },
-      { x:1056,y:461,width:199,height:148 }, { x:1292,y:460,width:204,height:149 }
+      { x:51,y:434,width:226,height:178 }, { x:317,y:437,width:222,height:175 },
+      { x:572,y:439,width:210,height:173 }, { x:809,y:436,width:217,height:176 },
+      { x:1057,y:443,width:211,height:170 }, { x:1292,y:443,width:215,height:170 }
     ],
     run: [
-      { x:53,y:731,width:177,height:144 }, { x:272,y:725,width:214,height:150 },
-      { x:519,y:725,width:238,height:128 }, { x:795,y:742,width:203,height:134 },
-      { x:1058,y:743,width:182,height:132 }, { x:1286,y:738,width:209,height:137 }
+      { x:51,y:711,width:192,height:167 }, { x:272,y:707,width:231,height:171 },
+      { x:518,y:711,width:243,height:145 }, { x:793,y:715,width:221,height:163 },
+      { x:1058,y:720,width:195,height:158 }, { x:1284,y:717,width:223,height:161 }
     ]
   }
 };
+
+// Crops now include breed-specific hats. These original subject heights keep
+// the dogs' bodies at their established world scale while headwear extends up.
+const dogMasterFrameBodyHeights = Object.freeze({
+  maltipoo: Object.freeze({
+    static: Object.freeze([166, 189, 130, 175, 165, 166]),
+    walk: Object.freeze([153, 152, 149, 153, 149, 149]),
+    run: Object.freeze([140, 152, 129, 133, 132, 138])
+  }),
+  maltese: Object.freeze({
+    static: Object.freeze([168, 184, 127, 178, 171, 171]),
+    walk: Object.freeze([156, 153, 151, 153, 148, 149]),
+    run: Object.freeze([144, 150, 128, 134, 132, 137])
+  })
+});
 
 function drawDogSprite(target, x, y, type, pose, direction, walkFrame, scale = 1) {
   scale *= DOG_ART_SCALE;
@@ -3455,7 +3591,9 @@ function drawDogSprite(target, x, y, type, pose, direction, walkFrame, scale = 1
   const staticColumns = { idle: 0, attentive: 1, relaxed: 0, sniff: 2, sit: 3, emotional: 4, interact: 5 };
   const frameIndex = running || walking ? Math.floor(walkFrame) % 6 : (staticColumns[pose] ?? 0);
   const rect = frames[group][frameIndex];
-  const drawHeight = (running ? DOG_RENDER_HEIGHTS.run : walking ? DOG_RENDER_HEIGHTS.walk : DOG_RENDER_HEIGHTS.static) * scale;
+  const bodyHeight = dogMasterFrameBodyHeights[type][group][frameIndex];
+  const bodyTargetHeight = running ? DOG_RENDER_HEIGHTS.run : walking ? DOG_RENDER_HEIGHTS.walk : DOG_RENDER_HEIGHTS.static;
+  const drawHeight = bodyTargetHeight * scale * (rect.height / bodyHeight);
   const drawWidth = drawHeight * (rect.width / rect.height);
   const runLift = running ? [0, 3, 8, 12, 5, 1][frameIndex] * scale : 0;
   const walkLift = walking ? [0, 1, 0, 2, 0, 1][frameIndex] * scale : 0;
@@ -3521,7 +3659,7 @@ function drawSelectionPreviews() {
 }
 
 const dogSelectionPortraitProfiles = Object.freeze({
-  maltipoo: { x: 120, footY: 150, scale: 1.4 },
+  maltipoo: { x: 120, footY: 158, scale: 1.42 },
   maltese: { x: 120, footY: 150, scale: 1.44 }
 });
 
@@ -3550,7 +3688,7 @@ const PORTRAIT_EYE_LINE = 0.46;
 const PORTRAIT_CANVAS_SIZE = 112;
 const PORTRAIT_CONTENT_PADDING = 8;
 const dogDialoguePortraitProfiles = Object.freeze({
-  maltipoo: { x: 56, footY: 104, scale: 1 },
+  maltipoo: { x: 56, footY: 109, scale: 0.98 },
   maltese: { x: 56, footY: 104, scale: 1.03 }
 });
 const visitorPortraitPadding = Object.freeze({
@@ -3675,11 +3813,12 @@ function drawNarratorPortrait() {
 }
 
 function drawWorldParticles() { particles.forEach((p) => { ctx.save(); ctx.globalAlpha = Math.min(1,p.life); ctx.translate(p.x,p.y); ctx.rotate(p.rotation); ctx.fillStyle=p.color; ctx.fillRect(-(p.width || 5)/2,-(p.height || 3)/2,p.width || 5,p.height || 3); ctx.restore(); }); }
-function spawnPetals(x,y,count) { for (let i=0;i<count;i++) particles.push({ x,y,vx:-45+Math.random()*90,vy:-55+Math.random()*20,life:1.5+Math.random()*1.2,rotation:Math.random()*6,spin:-4+Math.random()*8,color:["#ed8f8a","#f3c46d","#d39fb5"][i%3] }); }
+function pushWorldParticle(particle) { if (particles.length < MAX_WORLD_PARTICLES) particles.push(particle); }
+function spawnPetals(x,y,count) { for (let i=0;i<count;i++) pushWorldParticle({ x,y,vx:-45+Math.random()*90,vy:-55+Math.random()*20,life:1.5+Math.random()*1.2,rotation:Math.random()*6,spin:-4+Math.random()*8,color:["#ed8f8a","#f3c46d","#d39fb5"][i%3] }); }
 function spawnSaleSlips(x, y, accent, count) {
   const colors = ["#d9c39a", "#b89b6f", accent];
   for (let index = 0; index < count; index += 1) {
-    particles.push({
+    pushWorldParticle({
       x, y,
       vx: -34 + Math.random() * 68,
       vy: -48 + Math.random() * 24,
@@ -3711,7 +3850,8 @@ function drawLighting(time) {
     rooftop: [[730,315,44,.1]],
     cinemaInside: []
   };
-  const lights = lightsByScene[currentScene] || [];
+  const sceneLights = lightsByScene[currentScene] || [];
+  const lights = lowPowerRuntime ? sceneLights.filter((_, index) => index % 2 === 0) : sceneLights;
   for (const [worldX,y,baseRadius,alpha] of lights) {
     const x = worldX - camera.x; const radius = baseRadius + Math.sin(time/700 + worldX) * 2;
     const g=ctx.createRadialGradient(x,y,0,x,y,radius); g.addColorStop(0,`rgba(255,213,128,${alpha})`); g.addColorStop(1,"rgba(255,173,83,0)");
@@ -3721,6 +3861,17 @@ function drawLighting(time) {
 }
 
 function transition(callback) { ui.fade.classList.add("is-active"); setTimeout(() => { callback(); setTimeout(() => ui.fade.classList.remove("is-active"), 80); }, 560); }
+function interactionRadius(baseRadius) { return baseRadius + INTERACTION_RADIUS_BONUS; }
+function syncTouchAvailability(door, actionAvailable) {
+  if (!ui.touchDoor || !ui.touchAction) return;
+  const doorAvailable = Boolean(door);
+  ui.touchDoor.disabled = !doorAvailable;
+  ui.touchAction.disabled = !actionAvailable;
+  ui.touchDoor.classList.toggle("is-available", doorAvailable);
+  ui.touchAction.classList.toggle("is-available", actionAvailable);
+  ui.touchDoor.setAttribute("aria-label", doorAvailable ? door.label : "Enter or leave when near a doorway");
+  ui.touchAction.setAttribute("aria-label", actionAvailable ? ui.promptLabel.textContent : "Interact when something is nearby");
+}
 function clamp(value,min,max) { return Math.max(min,Math.min(max,value)); }
 function smoothstep(value) {
   const t = clamp(value, 0, 1);
@@ -3731,9 +3882,28 @@ function quadraticBezier(start, control, end, progress) {
   const inverse = 1 - t;
   return inverse * inverse * start + 2 * inverse * t * control + t * t * end;
 }
-function initAudio() { if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === "suspended") audioContext.resume(); }
+function initAudio() { if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === "suspended") audioContext.resume()?.catch?.(() => {}); }
 function tone(frequency,duration,volume) { if (audioMuted || !audioContext) return; const oscillator=audioContext.createOscillator(); const gain=audioContext.createGain(); oscillator.type="sine"; oscillator.frequency.value=frequency; gain.gain.setValueAtTime(volume,audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(0.0001,audioContext.currentTime+duration); oscillator.connect(gain); gain.connect(audioContext.destination); oscillator.start(); oscillator.stop(audioContext.currentTime+duration); }
 function toggleSound() { audioMuted=!audioMuted; ui.soundButton.textContent=audioMuted?"×":"♪"; ui.soundButton.setAttribute("aria-label",audioMuted?"Enable sound":"Mute sound"); if(!audioMuted){initAudio();tone(659,0.1,0.025);} }
-function loop(time) { const delta=Math.min((time-lastTime)/1000,0.04)||0; lastTime=time; update(delta,time); draw(time); requestAnimationFrame(loop); }
+function loop(frameTime) {
+  animationFrameId = null;
+  if (!pageVisible) return;
+  if (TARGET_FRAME_INTERVAL && lastRenderedFrame && frameTime - lastRenderedFrame < TARGET_FRAME_INTERVAL) {
+    animationFrameId = requestAnimationFrame(loop);
+    return;
+  }
+  const delta = Math.min((frameTime - lastFrameTime) / 1000, 0.04) || 0;
+  lastFrameTime = frameTime;
+  lastRenderedFrame = frameTime;
+  gameTime += delta * 1000;
+  update(delta, gameTime);
+  draw(gameTime);
+  animationFrameId = requestAnimationFrame(loop);
+}
 
-updateHUD(); requestAnimationFrame(loop);
+function startGameLoop() {
+  if (!pageVisible || animationFrameId !== null) return;
+  animationFrameId = requestAnimationFrame(loop);
+}
+
+updateHUD(); syncTouchAvailability(null, false); startGameLoop();

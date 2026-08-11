@@ -23,7 +23,7 @@ class FakeElement {
     this.style = {};
     this.dataset = {};
     this.listeners = {};
-    this.classList = { add() {}, remove() {}, contains() { return false; } };
+    this.classList = { add() {}, remove() {}, toggle() {}, contains() { return false; } };
   }
   addEventListener(type, callback) { (this.listeners[type] ||= []).push(callback); }
   click() { for (const callback of this.listeners.click || []) callback({ preventDefault() {} }); }
@@ -50,6 +50,11 @@ const checkpointButtons = ["market", "tennis", "aquarium", "pool", "cats", "bell
     button.dataset.checkpoint = checkpoint;
     return button;
   });
+const touchButtons = ["left", "right", "sprint", "up", "action"].map((key) => {
+  const button = new FakeElement();
+  button.dataset.key = key;
+  return button;
+});
 const document = {
   querySelector(selector) {
     if (!elements.has(selector)) elements.set(selector, new FakeElement());
@@ -58,6 +63,7 @@ const document = {
   querySelectorAll(selector) {
     if (selector === "[data-dog]") return dogButtons;
     if (selector === "[data-checkpoint]") return checkpointButtons;
+    if (selector === "[data-key]") return touchButtons;
     return [];
   },
   createElement() { return new FakeElement(); }
@@ -155,6 +161,16 @@ assert.notDeepEqual(dogVoiceComparison.momo, dogVoiceComparison.mallow, "Momo an
 
 assert.match(markup, /Continue\s*<kbd>E<\/kbd>/, "dialogue should advertise the same E action used for interaction");
 assert.match(markup, /<kbd>E<\/kbd> Interact \/ continue/, "the control legend should expose one shared action key");
+assert.match(markup, /viewport-fit=cover/, "the mobile viewport should extend safely around phone cutouts");
+assert.match(markup, /id="orientation-gate"/, "phone portrait mode should provide a dedicated landscape-orientation message");
+assert.match(stylesheet, /@media \(pointer:coarse\)/, "touch-first layouts should not depend on a narrow desktop breakpoint");
+assert.match(stylesheet, /env\(safe-area-inset-(?:left|right|bottom|top)\)/, "touch controls should respect notches and rounded screen corners");
+assert.match(stylesheet, /var\(--app-height,100dvh\)/, "mobile layout should track the visible browser viewport height");
+assert.match(stylesheet, /\.touch-action\.is-available/, "the contextual touch action should become visually prominent only when usable");
+assert.match(gameSource, /setPointerCapture\?\.\(event\.pointerId\)/, "multi-touch movement should retain each pointer until release");
+assert.match(gameSource, /document\.addEventListener\?\.\("visibilitychange", handleVisibilityChange\)/, "the game loop should pause cleanly when the page is hidden");
+assert.match(gameSource, /criticalAssetKeys = Object\.freeze\(\["bench", "dogMaltipoo", "dogMaltese"\]\)/, "the title screen should wait only for its critical artwork");
+assert.match(gameSource, /DEFERRED_ASSET_CONCURRENCY = isTouchRuntime \? 2 : 4/, "mobile asset decoding should use a restrained background queue");
 assert.match(stylesheet, /\.dialogue__body>p\{[^}]*font:500 clamp\(13px,1\.5vw,18px\)/, "dialogue copy should remain large and comfortably weighted across screen sizes");
 assert.match(stylesheet, /\.dialogue__body>p\{[^}]*text-shadow:\.35px 0 0/, "dialogue copy should retain a subtle weight boost even when the web font falls back");
 assert.match(stylesheet, /\.dialogue-choices button\{[^}]*font-size:12px[^}]*font-weight:500/, "emotional choices should use the heavier dialogue type scale");
@@ -170,6 +186,21 @@ vm.runInContext(`handleMenuKeydown({ key: "ArrowRight", repeat: false, preventDe
 assert.equal(vm.runInContext("menuIndex", sandbox), 1, "right arrow should select the next menu option");
 vm.runInContext(`handleMenuKeydown({ key: "ArrowLeft", repeat: false, preventDefault() {} });`, sandbox);
 assert.equal(vm.runInContext("menuIndex", sandbox), 0, "left arrow should select the previous menu option");
+
+touchButtons.find((button) => button.dataset.key === "left").listeners.pointerdown[0]({ pointerId: 11, preventDefault() {} });
+touchButtons.find((button) => button.dataset.key === "sprint").listeners.pointerdown[0]({ pointerId: 12, preventDefault() {} });
+assert.deepEqual(
+  JSON.parse(vm.runInContext(`JSON.stringify({ left: keys.left, sprint: keys.sprint, pointers: activeTouchPointers.size })`, sandbox)),
+  { left: true, sprint: true, pointers: 2 },
+  "touch movement and sprint should remain active under two simultaneous pointers"
+);
+touchButtons.find((button) => button.dataset.key === "left").listeners.pointerup[0]({ pointerId: 11, preventDefault() {} });
+assert.deepEqual(
+  JSON.parse(vm.runInContext(`JSON.stringify({ left: keys.left, sprint: keys.sprint, pointers: activeTouchPointers.size })`, sandbox)),
+  { left: false, sprint: true, pointers: 1 },
+  "releasing movement should not cancel a second held sprint pointer"
+);
+touchButtons.find((button) => button.dataset.key === "sprint").listeners.pointerup[0]({ pointerId: 12, preventDefault() {} });
 
 vm.runInContext(`state = "title"; menuIndex = 0; audioMuted = true;`, sandbox);
 vm.runInContext(`handleMenuKeydown({ key: "ArrowDown", repeat: false, preventDefault() {} });`, sandbox);
@@ -293,8 +324,8 @@ const poolLayoutSummary = vm.runInContext(`({
   interactions: { ...POOL_LAYOUT.interactions }
 })`, sandbox);
 const widestPoolRunHalfWidth = vm.runInContext(`Math.max(
-  ...dogMasterFrameRects.maltipoo.run.map((rect) => 85 * DOG_ART_SCALE * (rect.width / rect.height) / 2),
-  ...dogMasterFrameRects.maltese.run.map((rect) => 85 * DOG_ART_SCALE * (rect.width / rect.height) / 2)
+  ...dogMasterFrameRects.maltipoo.run.map((rect, index) => 85 * DOG_ART_SCALE * (rect.width / dogMasterFrameBodyHeights.maltipoo.run[index]) / 2),
+  ...dogMasterFrameRects.maltese.run.map((rect, index) => 85 * DOG_ART_SCALE * (rect.width / dogMasterFrameBodyHeights.maltese.run[index]) / 2)
 )`, sandbox);
 assert.ok(
   poolLayoutSummary.playerMaxX + widestPoolRunHalfWidth < poolLayoutSummary.tableLeft,
@@ -387,10 +418,16 @@ assert.doesNotMatch(gameSource, /function drawPoolPlayerWalkFrame\(|function dra
 assert.match(gameSource, /function drawPoolQuestDog\(/, "both playable dogs should use a dedicated sniff-and-paw performance");
 
 const dogFrameSummary = vm.runInContext(`Object.fromEntries(Object.entries(dogMasterFrameRects).map(([breed, groups]) => [breed,
-  Object.fromEntries(Object.entries(groups).map(([group, frames]) => [group, frames.map(({ x, width }) => ({ x, width }))]))
+  Object.fromEntries(Object.entries(groups).map(([group, frames]) => [group, frames.map((rect, index) => ({
+    ...rect,
+    bodyHeight: dogMasterFrameBodyHeights[breed][group][index]
+  }))]))
 ]))`, sandbox);
 for (const [breed, groups] of Object.entries(dogFrameSummary)) {
   for (const [group, frames] of Object.entries(groups)) {
+    assert.equal(frames.length, 6, `${breed} ${group} should retain all six hat-aware frames`);
+    assert.ok(frames.every((rect) => rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= 1536 && rect.y + rect.height <= 1024), `${breed} ${group} crops should remain inside the authored atlas`);
+    assert.ok(frames.every((rect) => rect.height >= rect.bodyHeight), `${breed} ${group} crops should preserve the established body scale while including headwear`);
     for (let index = 1; index < frames.length; index += 1) {
       assert.ok(
         frames[index - 1].x + frames[index - 1].width < frames[index].x,
@@ -460,11 +497,11 @@ assert.equal(vm.runInContext("player.pose", sandbox), "idle", "releasing movemen
 assert.equal(assetSummary.bench, "assets/bench-benchmark-v1.png", "the familiar bench should use the restrained benchmark environment");
 assert.equal(assetSummary.tennisCourt, "assets/exterior-tennis-court-benchmark-v6.png", "the tennis vignette should use an accurately divided authored court with uninterrupted foreground paving");
 assert.equal(assetSummary.tennisPlayers, "assets/character-tennis-players-v1.png", "the court players should use a dedicated multi-pose rally atlas");
-assert.equal(assetSummary.dogMaltipoo, "assets/dog-maltipoo-authored-v2.png", "the brown Maltipoo should use the low-resolution authored animation atlas");
-assert.equal(assetSummary.dogMaltese, "assets/dog-maltese-authored-v2.png", "the white Maltese should use the low-resolution authored animation atlas");
+assert.equal(assetSummary.dogMaltipoo, "assets/dog-maltipoo-authored-v4.png", "Momo should use the photo-matched curly Chopper-hat animation atlas");
+assert.equal(assetSummary.dogMaltese, "assets/dog-maltese-authored-v4.png", "Mallow should use the photo-matched wispy straw-hat animation atlas");
 assert.equal(assetSummary.visitors, "assets/character-visitors-authored-v2.png", "market visitors should share the restrained low-resolution character bible");
 assert.equal(assetSummary.visitorWalk, "assets/character-visitors-walk-v2.png", "market visitors should use restrained walk cycles");
-assert.equal(assetSummary.traveller, "assets/character-traveller-authored-v2.png", "the traveller should use the restrained low-resolution character bible");
+assert.equal(assetSummary.traveller, "assets/character-traveller-authored-v3.png", "the traveller should use the complete straw-hat animation atlas");
 assert.equal(assetSummary.benchCompanion, "assets/character-companion-authored-v2.png", "the ending companion should use the restrained low-resolution character atlas");
 assert.equal(assetSummary.supportingCast, "assets/character-supporting-cast-v2.png", "the rooftop cast and Bell's portraits should use the restrained supporting-character atlas");
 assert.equal(assetSummary.bellJump, "assets/character-bell-jump-v1.png", "Bell's chair jump should use a dedicated multi-pose animation atlas");
@@ -478,9 +515,10 @@ assert.equal(assetSummary.poolPlayerSequence, "assets/character-pool-player-sequ
 assert.equal(assetSummary.poolPlayerCarry, "assets/character-pool-player-carry-walk-v1.png", "the pool player should carry the 8-ball inside a dedicated hand-locked walk cycle");
 assert.equal("poolPlayerActions" in assetSummary, false, "the mismatched legacy action atlas should no longer be loaded");
 assert.equal("poolPlayerWalk" in assetSummary, false, "the mismatched legacy walk atlas should no longer be loaded");
-assert.equal(assetSummary.poolDogActions, "assets/dog-pool-search-actions-v1.png", "both dogs should use a dedicated search-and-paw atlas");
+assert.equal(assetSummary.poolDogActions, "assets/dog-pool-search-actions-v3.png", "both photo-matched dogs should retain their hats throughout the dedicated search-and-paw sequence");
 assert.match(gameSource, /standingSourceHeights = \[190\.5, 193\.5\]/, "both breeds should share measured standing references for the pool interaction");
-assert.match(gameSource, /interactionTargetHeight = DOG_RENDER_HEIGHTS\.static \* DOG_ART_SCALE \* sceneScale/, "custom pool poses should inherit the normal authored dog scale");
+assert.match(gameSource, /const POOL_QUEST_DOG_SCALE = 0\.82/, "foreshortened pool poses should receive one explicit optical scale correction");
+assert.match(gameSource, /interactionTargetHeight = DOG_RENDER_HEIGHTS\.static \* DOG_ART_SCALE \* sceneScale \* POOL_QUEST_DOG_SCALE/, "custom pool poses should inherit the normal dog scale before the optical correction");
 assert.match(gameSource, /stepIndex === 2 && progress < POOL_BALL_STANDARD_INTERACT_BEAT\) return false/, "the exposed-ball interaction should begin on the regular authored interaction sprite");
 assert.match(gameSource, /frameBaselines = \[/, "every pool dog action frame should use its own authored paw baseline");
 const poolDogRendererPhases = vm.runInContext(`(() => {
@@ -660,6 +698,18 @@ assert.doesNotThrow(() => vm.runInContext(`
   drawTravellerEncounter(2000);
   drawPortrait("traveller");
 `, sandbox), "the traveller's story poses, walk cycle, and portrait should render from the atlas");
+const travellerCropSummary = JSON.parse(vm.runInContext(`JSON.stringify({
+  walks: travellerWalkFrameRects,
+  poses: travellerPoseRects
+})`, sandbox));
+assert.equal(travellerCropSummary.walks.length, 4, "the straw-hat traveller should retain all four walk frames");
+assert.equal(travellerCropSummary.poses.length, 4, "the straw-hat traveller should retain all four story poses");
+for (const rect of [...travellerCropSummary.walks, ...travellerCropSummary.poses]) {
+  assert.ok(rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= 1254 && rect.y + rect.height <= 1254, "every traveller crop should remain inside the authored atlas");
+}
+assert.ok(travellerCropSummary.walks.every((rect) => rect.y <= 221), "walking crops should include the full straw-hat crown");
+assert.ok(travellerCropSummary.walks.every((rect) => rect.y + rect.height >= 542), "walking crops should retain the traveller's grounded feet and suitcase wheels");
+assert.ok(travellerCropSummary.poses[3].y + travellerCropSummary.poses[3].height >= 996, "the farewell crop should include both feet and the full suitcase");
 
 vm.runInContext(`
   resetGame();
@@ -731,8 +781,8 @@ assert.ok(portraitLayoutSummary.contentPadding >= 8, "portrait subjects should r
 for (const breed of ["maltipoo", "maltese"]) {
   const dialogueProfile = portraitLayoutSummary.dialogueDogs[breed];
   const selectionProfile = portraitLayoutSummary.selectionDogs[breed];
-  assert.ok(dialogueProfile.scale >= 1 && dialogueProfile.scale <= 1.04, `${breed}'s dialogue portrait should fill the frame without becoming oversized`);
-  assert.ok(dialogueProfile.footY <= 104, `${breed}'s dialogue portrait should keep its paws inside the frame`);
+  assert.ok(dialogueProfile.scale >= 0.97 && dialogueProfile.scale <= 1.04, `${breed}'s dialogue portrait should fill the frame without clipping its hat`);
+  assert.ok(dialogueProfile.footY <= 109, `${breed}'s dialogue portrait should keep its hat and paws inside the frame`);
   assert.ok(selectionProfile.scale >= 1.4 && selectionProfile.scale <= 1.45, `${breed}'s selection portrait should have consistent visual weight`);
   assert.equal(selectionProfile.x, 120, `${breed}'s selection portrait should remain centred`);
 }
