@@ -272,7 +272,7 @@ for (const quest of questSummary) {
 }
 vm.runInContext("activeQuest = null", sandbox);
 assert.equal(vm.runInContext("SCENES.entrance.groundY", sandbox), 452, "the market entrance baseline should place paws on the pavement edge, not the curb face");
-assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 495, "the rebuilt pool table should block the dog's complete visible footprint, not only its centre");
+assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 535, "the rebuilt pool table should preserve a complete dog-width buffer at its visible near corner");
 assert.ok(
   vm.runInContext(`questDefinitions.find((quest) => quest.id === "pool").steps.at(-1).x <= SCENES.poolInside.maxX`, sandbox),
   "the last pool interaction should remain reachable from the table's near corner"
@@ -280,11 +280,16 @@ assert.ok(
 const poolLayoutSummary = vm.runInContext(`({
   tableLeft: POOL_LAYOUT.table.left,
   surface: { ...POOL_LAYOUT.table.surface },
+  foregroundBody: POOL_LAYOUT.table.foreground.body.map((point) => [...point]),
+  foregroundLegs: POOL_LAYOUT.table.foreground.legs.map((leg) => ({ ...leg })),
   playerMaxX: POOL_LAYOUT.playerMaxX,
   helperX: POOL_LAYOUT.helper.x,
+  helperPickupX: POOL_LAYOUT.helper.pickupX,
+  helperTableX: POOL_LAYOUT.helper.tableX,
   helperHeight: POOL_LAYOUT.helper.height,
   missingBall: { ...POOL_LAYOUT.missingBall },
   searchActionDuration: questActionStyles.pool.durations[1],
+  returnActionDuration: questActionStyles.pool.durations[2],
   interactions: { ...POOL_LAYOUT.interactions }
 })`, sandbox);
 const widestPoolRunHalfWidth = vm.runInContext(`Math.max(
@@ -296,14 +301,34 @@ assert.ok(
   "even the widest sprint frame should remain visibly clear of the pool table"
 );
 assert.ok(
-  poolLayoutSummary.helperX > poolLayoutSummary.playerMaxX && poolLayoutSummary.helperX < poolLayoutSummary.tableLeft,
-  "the pool player should stand naturally between the dog boundary and the table apron"
+  poolLayoutSummary.helperX > poolLayoutSummary.tableLeft,
+  "the pool player should begin behind the regulation-height table rather than floating in the dog's lane"
 );
 assert.ok(poolLayoutSummary.helperHeight >= 190, "the pool player should be clearly human-sized beside the playable dog");
-const poolHelperLeft = vm.runInContext(`POOL_LAYOUT.helper.x - (POOL_LAYOUT.helper.height * visitorSpriteRects.poolplayer.width / visitorSpriteRects.poolplayer.height) / 2`, sandbox);
+const poolHelperLeft = poolLayoutSummary.helperX - poolLayoutSummary.helperHeight * 0.2;
 assert.ok(
   poolLayoutSummary.playerMaxX + widestPoolRunHalfWidth < poolHelperLeft,
   "the dog should stop before its widest sprint frame can overlap the enlarged pool player"
+);
+assert.ok(
+  poolLayoutSummary.helperPickupX < poolLayoutSummary.tableLeft &&
+    poolLayoutSummary.helperPickupX < poolLayoutSummary.helperX &&
+    poolLayoutSummary.helperTableX > poolLayoutSummary.tableLeft,
+  "the pool player should walk around the table's visible corner to collect the ball and return behind its apron"
+);
+assert.ok(poolLayoutSummary.returnActionDuration >= 8000, "the approach, pickup, carrying walk and table return should have enough screen time to read as separate actions");
+assert.ok(
+  458 - poolLayoutSummary.surface.y < poolLayoutSummary.helperHeight * 0.6,
+  "the pool-table surface should sit near an adult character's hip rather than their chest or shoulders"
+);
+assert.ok(
+  poolLayoutSummary.foregroundBody.length >= 6 && poolLayoutSummary.foregroundLegs.length >= 2,
+  "the table should use a shaped apron and separate leg masks instead of a rectangular character eraser"
+);
+assert.ok(
+  poolLayoutSummary.foregroundBody[0][1] <= poolLayoutSummary.surface.y &&
+    poolLayoutSummary.foregroundBody[1][1] <= poolLayoutSummary.surface.y,
+  "the table depth mask should include the felt surface so a character's legs cannot render inside the table"
 );
 assert.ok(
   Object.values(poolLayoutSummary.interactions).every((x) => x <= poolLayoutSummary.playerMaxX),
@@ -314,7 +339,7 @@ assert.ok(
     poolLayoutSummary.missingBall.foundX < poolLayoutSummary.missingBall.returnX,
   "the missing 8-ball should roll out past the dog before returning to the pool player"
 );
-for (const dogX of [poolLayoutSummary.interactions.hidingPlace - 70, poolLayoutSummary.playerMaxX]) {
+for (const dogX of [poolLayoutSummary.interactions.hidingPlace - 70, poolLayoutSummary.interactions.hidingPlace + 60]) {
   const rollStartX = dogX + poolLayoutSummary.missingBall.dogOffsetX;
   const dogCoverEdge = dogX + poolLayoutSummary.missingBall.dogCoverHalfWidth;
   const discoveredX = Math.max(
@@ -353,8 +378,9 @@ assert.ok(bellHomeLayout.bellHeight < 93, "Bell should remain smaller than the p
 assert.ok(bellHomeLayout.chairY < bellHomeLayout.floorY, "Bell's chair pose should begin above the floor landing");
 assert.equal(bellHomeLayout.floorY, bellHomeLayout.playerGroundY + 1, "Bell's landing paws should share the room floor line");
 
-const poolWalkFrames = vm.runInContext(`visitorWalkFrameRects.poolplayer.map(({ y, height }) => ({ y, height }))`, sandbox);
-assert.ok(poolWalkFrames.every(({ y, height }) => y + height <= 456), "pool-player walk crops must end at his shoes and exclude the next row's heads");
+assert.match(gameSource, /function drawPoolPlayerSequenceFrame\(/, "the pool player should use one normalized atlas for gestures, walking and retrieval");
+assert.doesNotMatch(gameSource, /function drawPoolPlayerWalkFrame\(|function drawPoolPlayerActionFrame\(/, "the pool player should not switch between mismatched scale and baseline renderers");
+assert.match(gameSource, /function drawPoolQuestDog\(/, "both playable dogs should use a dedicated sniff-and-paw performance");
 
 const dogFrameSummary = vm.runInContext(`Object.fromEntries(Object.entries(dogMasterFrameRects).map(([breed, groups]) => [breed,
   Object.fromEntries(Object.entries(groups).map(([group, frames]) => [group, frames.map(({ x, width }) => ({ x, width }))]))
@@ -399,7 +425,7 @@ vm.runInContext(`
   keys.sprint = true;
   update(0.2, 250);
 `, sandbox);
-assert.equal(vm.runInContext("player.x", sandbox), 495, "the dog's complete sprint silhouette should stop before the pool player and table");
+assert.equal(vm.runInContext("player.x", sandbox), 535, "the dog's complete sprint silhouette should stop at the visible pool-table boundary");
 assert.doesNotThrow(() => vm.runInContext(`
   assets.dogMaltipoo = { width: 1536, height: 1024 };
   assets.dogMaltese = { width: 1536, height: 1024 };
@@ -444,6 +470,10 @@ assert.equal(assetSummary.cinemaProjection, "assets/cinema-projection-hail-mary-
 assert.equal(assetSummary.projectionist, "assets/character-projectionist-v1.png", "the cinema should use its authored projectionist atlas");
 assert.equal(assetSummary.cafeCats, "assets/character-cafe-cats-v1.png", "the cat cafe should use three authored quest cats");
 assert.equal(assetSummary.poolEightBall, "assets/pool-eight-ball-v1.png", "the pool quest should use an authored 8-ball sprite matched to the rebuilt table");
+assert.equal(assetSummary.poolPlayerSequence, "assets/character-pool-player-sequence-v2.png", "the pool player should use one normalized gesture, walk and recovery atlas");
+assert.equal("poolPlayerActions" in assetSummary, false, "the mismatched legacy action atlas should no longer be loaded");
+assert.equal("poolPlayerWalk" in assetSummary, false, "the mismatched legacy walk atlas should no longer be loaded");
+assert.equal(assetSummary.poolDogActions, "assets/dog-pool-search-actions-v1.png", "both dogs should use a dedicated search-and-paw atlas");
 assert.equal(assetSummary.questEffects, "assets/quest-effects-atlas-v2.png", "quest actions should use the cleaned authored pixel-art effects atlas");
 assert.equal(assetSummary.bellHome, "assets/interior-bell-home-benchmark-v5.png", "Bell's room should use the human-scale Norwegian-flag interior");
 assert.equal("portraits" in assetSummary, false, "portraits should be cropped from the same world-character artwork instead of a mismatched atlas");
@@ -456,7 +486,7 @@ const benchmarkBackgrounds = {
   entrance: "assets/market-entrance-benchmark-v1.png",
   market: "assets/market-interior-benchmark-v2.png",
   aquariumInside: "assets/interior-aquarium-benchmark-v4.png",
-  poolInside: "assets/interior-pool-benchmark-v7.png",
+  poolInside: "assets/interior-pool-benchmark-v9.png",
   catInside: "assets/interior-cat-cafe-benchmark-v3.png",
   bellHome: "assets/interior-bell-home-benchmark-v5.png",
   rooftop: "assets/rooftop-benchmark-v5.png",
@@ -480,14 +510,18 @@ assert.match(gameSource, /withWorldClip\(aquariumTankWindows\.deep/, "the discov
 assert.match(gameSource, /withWorldClip\(aquariumTankWindows\.reef/, "the tropical fish should remain clipped inside the reef tank");
 assert.match(gameSource, /function drawPoolSearchTrail\(/, "the missing ball should leave a restrained floor-level search trail");
 assert.match(gameSource, /function drawMissingEightBall\(/, "the discovered 8-ball should have a dedicated readable foreground sprite");
-assert.match(gameSource, /drawAuthoredPoolEightBall\(ball\.rackX, ball\.rackY, 9, 1, true\)/, "the recovered authored 8-ball should visibly return to the rack");
+assert.match(gameSource, /drawAuthoredPoolEightBall\(ball\.rackX, ball\.rackY, 11, 1, true\)/, "the recovered authored 8-ball should visibly return to the rack");
 assert.match(gameSource, /const rollOutProgress = clamp\(/, "the hidden 8-ball should use a linear clock for readable reveal phases");
-assert.match(gameSource, /const rollBackProgress = smoothstep\(clamp\(/, "the dog should visibly roll the 8-ball back toward the pool player");
+assert.match(gameSource, /returnActionProgress < 0\.18/, "the dog should visibly roll the 8-ball to the pool player's collection point");
+assert.match(gameSource, /returnActionProgress >= 0\.98/, "the retrieved 8-ball should receive a separate felt-roll phase into the rack");
 assert.match(gameSource, /ctx\.rotate\(rotation\)/, "the authored 8-ball sprite should rotate according to its travelled distance");
 assert.match(gameSource, /activeQuest\.poolBallStartX = player\.x \+ ball\.dogOffsetX/, "the discovered ball should begin at the dog's far side rather than at a fixed empty-floor coordinate");
 assert.match(gameSource, /const dogCoverEdge = .* \+ dogActionShift \+ ball\.dogCoverHalfWidth/, "the ball reveal should track the dog's moving silhouette");
 assert.match(gameSource, /withWorldClip\(\{ x: dogCoverEdge/, "the dog's body should occlude the ball until it physically rolls clear");
 assert.match(gameSource, /const emergenceProgress = smoothstep\(clamp\(/, "the ball should have a dedicated slow silhouette-emergence phase");
+assert.match(gameSource, /function drawPoolForegroundOcclusion\(/, "the rebuilt table apron should naturally occlude characters walking behind it");
+assert.match(gameSource, /foreground\.body\.forEach/, "the pool-table occlusion should follow the authored rail silhouette");
+assert.match(gameSource, /foreground\.legs\.forEach/, "the pool-table legs should occlude independently while leaving the space beneath the apron visible");
 assert.doesNotMatch(gameSource, /function drawPoolBall\(/, "the rebuilt table should not overlay primitive code-drawn coloured balls");
 assert.doesNotMatch(gameSource, /drawQuestEffectSprite\("guard"/, "the removed lamp-guard objective should not leave visual effects behind");
 assert.match(gameSource, /function drawCinemaQuestVisuals\(/, "the cinema should have scene-native mission choreography");

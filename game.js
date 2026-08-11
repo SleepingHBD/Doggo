@@ -30,17 +30,28 @@ const TOTAL_QUESTS = 6;
 const DOG_ART_SCALE = 0.92;
 const ROOFTOP_CHARACTER_SCALE = 0.83;
 const POOL_LAYOUT = {
-  table: { left: 650, surface: { x: 666, y: 326, width: 410, height: 64 } },
-  playerMaxX: 495,
-  helper: { x: 620, height: 192 },
+  table: {
+    left: 618,
+    surface: { x: 625, y: 360, width: 468, height: 48 },
+    foreground: {
+      body: [[618, 360], [1092, 360], [1100, 375], [1100, 468], [650, 468], [650, 402]],
+      legs: [
+        { x: 651, y: 431, width: 34, height: 62 },
+        { x: 1027, y: 431, width: 38, height: 62 }
+      ]
+    }
+  },
+  playerMaxX: 535,
+  helper: { x: 675, pickupX: 570, tableX: 720, height: 190 },
   missingBall: {
-    hidingX: 453, foundX: 515, returnX: 590, floorY: 457,
+    hidingX: 446, foundX: 500, returnX: 570, floorY: 457,
     dogOffsetX: 8, dogCoverHalfWidth: 30, rollClearance: 70,
     rollStart: 0.08, rollEnd: 0.76,
     emergenceStart: 0.22, emergenceEnd: 0.78, clearPadding: 4,
-    rackX: 848, rackY: 352
+    tableDropX: 748, tableDropY: 384,
+    rackX: 850, rackY: 384
   },
-  interactions: { wallTray: 330, hidingPlace: 445, returnBall: 495 }
+  interactions: { wallTray: 315, hidingPlace: 430, returnBall: 475 }
 };
 const AQUARIUM_LAYOUT = {
   helper: { x: 112, height: 154 },
@@ -152,8 +163,10 @@ const assetSources = {
   entrance: "assets/market-entrance-benchmark-v1.png",
   market: "assets/market-interior-benchmark-v2.png",
   aquariumInside: "assets/interior-aquarium-benchmark-v4.png",
-  poolInside: "assets/interior-pool-benchmark-v7.png",
+  poolInside: "assets/interior-pool-benchmark-v9.png",
   poolEightBall: "assets/pool-eight-ball-v1.png",
+  poolPlayerSequence: "assets/character-pool-player-sequence-v2.png",
+  poolDogActions: "assets/dog-pool-search-actions-v1.png",
   catInside: "assets/interior-cat-cafe-benchmark-v3.png",
   bellHome: "assets/interior-bell-home-benchmark-v5.png",
   rooftop: "assets/rooftop-benchmark-v5.png",
@@ -380,21 +393,21 @@ const questDefinitions = [
     ],
     arrival: () => [
       line("Narrator", "Every ball is gathered on the felt except the black one. A single space waits in the middle of the rack.", "narrator"),
-      line("Pool Player", "I checked the pockets twice. Start with the wall tray beside the cues; that is where the spare balls usually sit.", "poolplayer")
+      line("Pool Player", "I checked all six pockets twice. Start with the shallow tray beneath the cues; that is where the spare balls usually sit.", "poolplayer")
     ],
     steps: [
       { x: POOL_LAYOUT.interactions.wallTray, cameraFocus: 365, kicker: "The empty wall tray", label: "Check beside the cue rack", objective: "Inspect the spare-ball tray", lines: () => [
         line("Narrator", "The tray is empty, but a clean round mark interrupts the dust. A faint track continues across the floor.", "narrator"),
         dogLine("It rolled right.", "There is a trail."),
-        line("Pool Player", "The track ends beneath the chair. Check under it before I move anything and send the ball farther away.", "poolplayer")
+        line("Pool Player", "The track ends beneath the low bench. Check under it before I move anything and send the ball farther away.", "poolplayer")
       ] },
-      { x: POOL_LAYOUT.interactions.hidingPlace, cameraFocus: 520, kicker: "A shadow beneath the chair", label: "Look for the missing ball", objective: "Search beneath the chair", lines: () => [
-        line("Narrator", "One nose reaches beneath the lowest rung. The 8-ball rolls out and stops beside a front paw.", "narrator"),
+      { x: POOL_LAYOUT.interactions.hidingPlace, cameraFocus: 500, kicker: "A shadow beneath the bench", label: "Look for the missing ball", objective: "Search beneath the low bench", lines: () => [
+        line("Narrator", "A nose lowers, one paw reaches in, and the 8-ball rolls cleanly out of the shadow.", "narrator"),
         dogLine("Found it.", "Black ball, found."),
-        line("Pool Player", "Perfect. Nudge it along the clear floor to me. Slowly—the table leg is a very convincing pocket.", "poolplayer")
+        line("Pool Player", "Perfect. Give it one careful nudge into the open floor. I'll collect it from there.", "poolplayer")
       ] },
-      { x: POOL_LAYOUT.interactions.returnBall, cameraFocus: 615, kicker: "A clear line to the table", label: "Nudge the 8-ball back", objective: "Return the 8-ball to the pool player", lines: () => [
-        line("Narrator", "The 8-ball rolls to the pool player's shoe. He lifts it onto the felt and closes the waiting space in the rack.", "narrator"),
+      { x: POOL_LAYOUT.interactions.returnBall, cameraFocus: 570, kicker: "A clear line across the floor", label: "Nudge the 8-ball back", objective: "Return the 8-ball to the pool player", lines: () => [
+        line("Narrator", "The 8-ball slows beside his shoe. He crouches, collects it, walks it back to the table, and closes the space in the rack.", "narrator"),
         line("Pool Player", "Complete set. And not a single ceiling tile involved.", "poolplayer")
       ] }
     ],
@@ -782,7 +795,9 @@ function jumpToCheckpoint(checkpointId) {
     currentScene = quest.interior;
     spawnX = quest.id === "leap"
       ? SCENES[currentScene].minX + 20
-      : Math.max(SCENES[currentScene].minX + 45, quest.steps[0].x - 55);
+      : quest.id === "pool"
+        ? 380
+        : Math.max(SCENES[currentScene].minX + 45, quest.steps[0].x - 55);
     checkpointLabel = quest.place.toUpperCase();
   } else if (checkpointId === "final") {
     applyCheckpointProgress(questDefinitions.length);
@@ -1246,7 +1261,7 @@ function interactQuestStep() {
 
 const questActionStyles = {
   aquarium: { color: "#7fd3e7", durations: [1450, 1500, 1900], poses: ["emotional", "emotional", "idle"], directions: ["right", "right", "right"] },
-  pool: { color: "#e0b268", durations: [1300, 1650, 2050], poses: ["emotional", "emotional", "walk"], directions: ["left", "right", "right"] },
+  pool: { color: "#e0b268", durations: [1700, 2400, 8200], poses: ["sniff", "sniff", "interact"], directions: ["left", "right", "right"] },
   cats: { color: "#db9b75", durations: [1350, 1750, 1500], poses: ["emotional", "walk", "emotional"], directions: ["left", "right", "right"] },
   bell: { color: "#b79ac2", durations: [1300, 1700, 2100], poses: ["sit", "emotional", "sit"], directions: ["right", "right", "left"] },
   cinema: { color: "#c6a86b", durations: [1800, 1950, 2350], poses: ["emotional", "emotional", "sit"], directions: ["right", "right", "right"] },
@@ -1705,11 +1720,74 @@ function draw(time) {
     const actionShift = (questAction && !["sit", "idle"].includes(player.pose) ? actionArc * 7 : 0) + tennisArc * 5;
     const actionLift = (questAction && player.pose !== "sit" ? actionArc * 3 : 0) + tennisArc * 1.5;
     const playerScale = SCENES[currentScene].playerScale || 1;
-    drawDogSprite(ctx, player.x + actionShift, player.y - actionLift, player.type, player.pose, player.direction, player.walkFrame, playerScale);
+    const poolDogDrawn = drawPoolQuestDog(time, player.x + actionShift, player.y - actionLift);
+    if (!poolDogDrawn) drawDogSprite(ctx, player.x + actionShift, player.y - actionLift, player.type, player.pose, player.direction, player.walkFrame, playerScale);
     if (journey.returning && currentScene === "bench" && endingFlower) drawCarriedFlower(player.x, player.y, player.direction, endingFlower, time);
   }
+  drawPoolForegroundOcclusion();
   drawWorldParticles(); ctx.restore();
   drawLighting(time);
+}
+
+function drawPoolQuestDog(time, x, footY) {
+  if (
+    currentScene !== "poolInside" || activeQuest?.id !== "pool" ||
+    questAction?.questId !== "pool" || !assets.poolDogActions ||
+    ![1, 2].includes(questAction.stepIndex)
+  ) return false;
+
+  const progress = questAction.progress;
+  let frame;
+  if (questAction.stepIndex === 1) {
+    frame = progress < 0.12 ? 0
+      : progress < 0.28 ? 1
+      : progress < 0.48 ? 2
+      : progress < 0.66 ? 3
+      : progress < 0.86 ? 4
+      : 5;
+  } else {
+    frame = progress < 0.08 ? 3 : progress < 0.2 ? 4 : 5;
+  }
+
+  const reachShift = questAction.stepIndex === 1
+    ? Math.sin(clamp((progress - 0.42) / 0.48, 0, 1) * Math.PI) * 4
+    : Math.sin(clamp(progress / 0.24, 0, 1) * Math.PI) * 3;
+  const atlas = assets.poolDogActions;
+  const row = player.type === "maltese" ? 1 : 0;
+  const sourceWidth = atlas.width / 6;
+  const sourceHeight = atlas.height / 2;
+  const baselineRatios = [0.77, 0.66];
+  const scale = 0.5 * DOG_ART_SCALE;
+  const baseline = sourceHeight * baselineRatios[row];
+  const drawX = x + reachShift;
+
+  drawPixelContactShadow(drawX, footY - 1, frame === 4 ? 42 : 36, 0.29);
+  ctx.save();
+  ctx.translate(Math.round(drawX), Math.round(footY));
+  ctx.filter = dogSceneFilter();
+  ctx.drawImage(
+    atlas,
+    frame * sourceWidth, row * sourceHeight, sourceWidth, sourceHeight,
+    -sourceWidth * scale / 2, -baseline * scale, sourceWidth * scale, sourceHeight * scale
+  );
+  ctx.restore();
+  return true;
+}
+
+function drawPoolForegroundOcclusion() {
+  if (currentScene !== "poolInside" || !assets.poolInside) return;
+  const foreground = POOL_LAYOUT.table.foreground;
+  ctx.save();
+  ctx.beginPath();
+  foreground.body.forEach(([x, y], index) => {
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  foreground.legs.forEach((leg) => ctx.rect(leg.x, leg.y, leg.width, leg.height));
+  ctx.clip();
+  drawImageCover(assets.poolInside, SCENES.poolInside.width, 540);
+  ctx.restore();
 }
 
 function drawTennisVignette(time) {
@@ -2019,14 +2097,14 @@ function drawPoolQuestVisuals(time) {
   const searchProgress = questVisualProgress(1);
   const returnProgress = questVisualProgress(2);
   const ball = POOL_LAYOUT.missingBall;
-  const ballSize = 13;
+  const ballSize = 15;
   const ballRadius = ballSize / 2;
 
-  // The seven stationary balls and their wooden triangle are authored directly
-  // into the table background so they inherit its perspective and lamp light.
-  // Only the missing 8-ball remains dynamic.
+  // The coloured balls and their triangle belong to the room artwork. The
+  // missing eight is the only separately animated ball, allowing it to retain
+  // one scale, one contact shadow and continuous rotation through the search.
   withWorldClip(POOL_LAYOUT.table.surface, () => {
-    if (returnProgress >= 1) drawAuthoredPoolEightBall(ball.rackX, ball.rackY, 9, 1, true);
+    if (returnProgress >= 1) drawAuthoredPoolEightBall(ball.rackX, ball.rackY, 11, 1, true);
   });
 
   if (trayProgress > 0) drawPoolSearchTrail(trayProgress);
@@ -2041,18 +2119,39 @@ function drawPoolQuestVisuals(time) {
       0,
       1
     );
-    const rollBackProgress = smoothstep(clamp(returnActionProgress / 0.72, 0, 1));
     const hasBeenFound = (activeQuest.visualStep || 0) > 1 || searchProgress >= 1;
     const rollStartX = activeQuest.poolBallStartX ?? ball.hidingX;
     const discoveredX = activeQuest.poolBallFoundX ?? ball.foundX;
 
     if (returningNow) {
-      const x = discoveredX + (ball.returnX - discoveredX) * rollBackProgress;
-      const rotation = (discoveredX - rollStartX + x - discoveredX) / ballRadius;
-      const floorRumble = Math.sin(rollBackProgress * Math.PI * 8) * (1 - rollBackProgress) * 0.6;
-      drawMissingEightBall(x, ball.floorY - Math.abs(floorRumble), time, 1, rotation);
+      if (returnActionProgress < 0.18) {
+        const roll = smoothstep(returnActionProgress / 0.18);
+        const x = discoveredX + (ball.returnX - discoveredX) * roll;
+        const rotation = (discoveredX - rollStartX + x - discoveredX) / ballRadius;
+        const rumble = Math.sin(roll * Math.PI * 7) * (1 - roll) * 0.8;
+        drawMissingEightBall(x, ball.floorY - Math.abs(rumble), time, 1, rotation);
+      } else if (returnActionProgress < 0.53) {
+        const rotation = (ball.returnX - rollStartX) / ballRadius;
+        drawMissingEightBall(ball.returnX, ball.floorY, time, 1, rotation);
+      } else if (returnActionProgress >= 0.68 && returnActionProgress < 0.91) {
+        const travel = smoothstep((returnActionProgress - 0.68) / 0.23);
+        const carrierX = POOL_LAYOUT.helper.pickupX + (POOL_LAYOUT.helper.tableX - POOL_LAYOUT.helper.pickupX) * travel;
+        drawAuthoredPoolEightBall(carrierX + 28, SCENES.poolInside.groundY - 99, 13, 1, false, travel * Math.PI * 4);
+      } else if (returnActionProgress >= 0.95 && returnActionProgress < 0.98) {
+        const lower = smoothstep((returnActionProgress - 0.95) / 0.03);
+        const x = POOL_LAYOUT.helper.tableX + 34 + (ball.tableDropX - (POOL_LAYOUT.helper.tableX + 34)) * lower;
+        const heldBallY = SCENES.poolInside.groundY - 100;
+        const y = heldBallY + (ball.tableDropY - heldBallY) * lower;
+        drawMissingEightBall(x, y, time, 1, (ball.returnX - rollStartX) / ballRadius + lower * Math.PI);
+      } else if (returnActionProgress >= 0.98) {
+        const settle = smoothstep((returnActionProgress - 0.98) / 0.02);
+        const x = ball.tableDropX + (ball.rackX - ball.tableDropX) * settle;
+        const y = ball.tableDropY + (ball.rackY - ball.tableDropY) * settle - Math.sin(settle * Math.PI) * 2;
+        const rotation = (ball.returnX - rollStartX + x - ball.tableDropX) / ballRadius;
+        drawAuthoredPoolEightBall(x, y, 11, 1, true, rotation);
+      }
     } else if (searchingNow && searchActionProgress >= ball.rollStart) {
-      const dogActionShift = Math.sin(searchActionProgress * Math.PI) * 7;
+      const dogActionShift = Math.sin(searchActionProgress * Math.PI) * 3;
       const dogCoverEdge = (activeQuest.poolBallDogX ?? player.x) + dogActionShift + ball.dogCoverHalfWidth;
       const coveredX = dogCoverEdge - ballRadius - 1;
       const clearedX = dogCoverEdge + ballRadius + ball.clearPadding;
@@ -2076,10 +2175,9 @@ function drawPoolQuestVisuals(time) {
         x = clearedX + (discoveredX - clearedX) * rollAwayProgress;
       }
       const rotation = (x - rollStartX) / ballRadius;
-      const dislodgeLift = Math.sin(rollOutProgress * Math.PI) * (1 - rollOutProgress) * 1.4;
-      // Quest set pieces render before the dog. This clip keeps the ball fully
-      // hidden on the dog's far side, then reveals only the pixels that have
-      // physically rolled beyond the dog's silhouette.
+      const dislodgeLift = Math.sin(rollOutProgress * Math.PI) * (1 - rollOutProgress) * 1.8;
+      // Quest set pieces render before the dog. The reveal clip keeps the ball
+      // behind the reaching paw until its complete silhouette clears the dog.
       withWorldClip({ x: dogCoverEdge, y: ball.floorY - 18, width: ball.returnX - dogCoverEdge + 24, height: 22 }, () => {
         drawMissingEightBall(x, ball.floorY - dislodgeLift, time, 1, rotation);
       });
@@ -2602,6 +2700,10 @@ const questHelperLayout = {
 function drawQuestLocationActors(time) {
   if (!activeQuest || currentScene !== activeQuest.interior || activeQuest.id === "leap") return;
   const layout = questHelperLayout[activeQuest.id];
+  if (activeQuest.id === "pool") {
+    drawPoolQuestPlayer(time);
+    return;
+  }
   if (activeQuest.id === "cinema" && layout) {
     const direction = player.x < layout.x ? "left" : "right";
     drawProjectionistSprite(layout.x, SCENES[currentScene].groundY + 1, direction, time);
@@ -2613,6 +2715,90 @@ function drawQuestLocationActors(time) {
     drawGroundedQuestVisitor(layout.x, SCENES[currentScene].groundY + 1, rect, direction, time, layout.height);
   }
   if (activeQuest.id === "bell") drawBellQuestSprite(time);
+}
+
+function drawPoolQuestPlayer(time) {
+  if (!assets.poolPlayerSequence) return;
+  const layout = POOL_LAYOUT.helper;
+  const footY = SCENES.poolInside.groundY + 1;
+  let x = layout.x;
+  let row = 0;
+  let frame = 0;
+  let direction = "left";
+  let bob = 0;
+  const poolAction = questAction?.questId === "pool" ? questAction : null;
+
+  if (poolAction?.stepIndex === 0) {
+    const progress = poolAction.progress;
+    frame = progress < 0.22 ? 2 : progress < 0.72 ? 3 : 4;
+  } else if (poolAction?.stepIndex === 1) {
+    frame = poolAction.progress < 0.5 ? 2 : 4;
+  } else if (poolAction?.stepIndex === 2) {
+    const progress = poolAction.progress;
+    if (progress < 0.18) {
+      frame = 2;
+    } else if (progress < 0.28) {
+      frame = 0;
+    } else if (progress < 0.42) {
+      const travel = smoothstep((progress - 0.28) / 0.14);
+      x = layout.x + (layout.pickupX - layout.x) * travel;
+      row = 1;
+      frame = Math.floor(travel * 10) % 8;
+      direction = "left";
+      bob = [0, 1, 2, 1, 0, 1, 2, 1][frame];
+    } else if (progress < 0.68) {
+      x = layout.pickupX;
+      row = 2;
+      frame = Math.min(6, Math.floor(((progress - 0.42) / 0.26) * 7));
+      direction = progress < 0.61 ? "left" : "right";
+    } else if (progress < 0.91) {
+      const travel = smoothstep((progress - 0.68) / 0.23);
+      x = layout.pickupX + (layout.tableX - layout.pickupX) * travel;
+      row = 1;
+      frame = Math.floor(travel * 13) % 8;
+      direction = "right";
+      bob = [0, 1, 2, 1, 0, 1, 2, 1][frame];
+    } else if (progress < 0.95) {
+      x = layout.tableX;
+      row = 2;
+      frame = 6;
+      direction = "right";
+    } else {
+      x = layout.tableX;
+      frame = 7;
+      direction = "left";
+    }
+  } else if ((activeQuest.visualStep || 0) >= 3) {
+    x = layout.tableX;
+    frame = 7;
+    direction = "left";
+  } else if ((activeQuest.visualStep || 0) >= 1) {
+    frame = 2;
+  }
+
+  drawPixelContactShadow(x, footY + 1, row === 1 ? 35 : 31, 0.25);
+  drawPoolPlayerSequenceFrame(row, frame, x, footY - bob, direction);
+}
+
+function drawPoolPlayerSequenceFrame(row, frame, x, footY, direction) {
+  const image = assets.poolPlayerSequence;
+  if (!image) return;
+  const columns = 8;
+  const rows = 3;
+  const sourceWidth = image.width / columns;
+  const sourceHeight = image.height / rows;
+  const scale = POOL_LAYOUT.helper.height / 250;
+  const baseline = 298;
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(footY));
+  if (direction === "left") ctx.scale(-1, 1);
+  ctx.filter = "saturate(.9) brightness(.93) contrast(1.05)";
+  ctx.drawImage(
+    image,
+    frame * sourceWidth, row * sourceHeight, sourceWidth, sourceHeight,
+    -sourceWidth * scale / 2, -baseline * scale, sourceWidth * scale, sourceHeight * scale
+  );
+  ctx.restore();
 }
 
 function drawGroundedQuestVisitor(x, footY, rect, direction, time, drawHeight) {
