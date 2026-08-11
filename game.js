@@ -84,9 +84,27 @@ const CINEMA_LAYOUT = {
   screen: { x: 750, y: 94, width: 302, height: 252 },
   interactions: { aisle: 330, projector: 560, signal: 900 }
 };
+const TENNIS_LAYOUT = {
+  triggerX: 430,
+  court: {
+    netX: 550,
+    playerAX: 270, playerAY: 360, playerAHeight: 118,
+    playerBX: 830, playerBY: 360, playerBHeight: 118
+  },
+  ball: {
+    looseX: 612, looseY: 455,
+    landingX: 758, landingY: 365,
+    receiveX: 792, receiveY: 290
+  },
+  interactionRadius: 66,
+  escapeDuration: 1900,
+  returnDuration: 1450,
+  celebrationDuration: 2400
+};
 const SCENES = {
   bench: { asset: "bench", width: 1100, minX: 105, maxX: 995, groundY: 430,
     doors: [{ x: 210, radius: 68, target: "bellHome", spawnX: 155, label: "Enter Bell's home", quest: "bell" }] },
+  tennisCourt: { asset: "tennisCourt", width: 1100, minX: 105, maxX: 995, groundY: 458 },
   aquarium: { asset: "aquarium", width: 1100, minX: 105, maxX: 995, groundY: 458,
     doors: [{ x: 400, radius: 76, target: "aquariumInside", spawnX: 200, label: "Enter the aquarium", quest: "aquarium" }] },
   dateNight: { asset: "dateNight", width: 1100, minX: 105, maxX: 995, groundY: 458,
@@ -125,6 +143,8 @@ const SCENES = {
 const assetSources = {
   bench: "assets/bench-benchmark-v1.png",
   benchCompanion: "assets/character-companion-authored-v2.png",
+  tennisCourt: "assets/exterior-tennis-court-benchmark-v6.png",
+  tennisPlayers: "assets/character-tennis-players-v1.png",
   aquarium: "assets/exterior-aquarium-benchmark-v1.png",
   dateNight: "assets/exterior-date-night-benchmark-v1.png",
   catStories: "assets/exterior-cat-stories-benchmark-v1.png",
@@ -166,6 +186,7 @@ const choiceMemories = [];
 const particles = [];
 const ambientProfiles = {
   bench: { rate: 0.35, palette: ["#8c7955", "#6f7954", "#b38b57"], width: 3, height: 2, vx: [-4, 6], vy: [5, 12] },
+  tennisCourt: { rate: 0.16, palette: ["#788574", "#967b55", "#586d77"], width: 2, height: 2, vx: [-3, 4], vy: [3, 7] },
   aquarium: { rate: 0.18, palette: ["#6f8d95", "#849da0"], width: 2, height: 2, vx: [-2, 3], vy: [3, 7] },
   dateNight: { rate: 0.22, palette: ["#8b785d", "#786e58"], width: 3, height: 2, vx: [-3, 5], vy: [4, 9] },
   catStories: { rate: 0.22, palette: ["#8b785d", "#6e7757"], width: 3, height: 2, vx: [-3, 5], vy: [4, 9] },
@@ -193,6 +214,16 @@ const travellerEncounter = {
   motionDuration: 2500, farewellDuration: 620, walkFrame: 0, lastStep: -1,
   cameraX: 0
 };
+const tennisEncounter = {
+  stage: "rally",
+  startedAt: 0,
+  rallyEpoch: 0,
+  ballX: TENNIS_LAYOUT.ball.looseX,
+  ballY: TENNIS_LAYOUT.ball.looseY,
+  ballSpin: 0,
+  speechUntil: 0,
+  completed: false
+};
 
 let state = "loading";
 let currentScene = "bench";
@@ -202,6 +233,7 @@ let nearbyQuestStep = null;
 let nearbyReunion = false;
 let nearbyTraveller = false;
 let nearbyTravelTag = false;
+let nearbyTennisBall = false;
 let currentFlower = null;
 let endingFlower = null;
 let activeQuest = null;
@@ -668,7 +700,7 @@ function chooseDog(type) {
     showDialogue([
       line("Narrator", "6:42 p.m. The rain has stopped. The flower market closes at sunset.", "narrator"),
       dogLine("One flower. Easy.", "One flower. Carefully."),
-      line("Narrator", "The market is four streets away. The walk begins.", "narrator")
+      line("Narrator", "The market is a few streets away. The walk begins.", "narrator")
     ], resumePlay);
   });
 }
@@ -684,13 +716,18 @@ function clearStoryProgress() {
     departureTargetX: 1180, motionStartedAt: 0, motionDuration: 2500,
     farewellDuration: 620, walkFrame: 0, lastStep: -1, cameraX: 0
   });
+  Object.assign(tennisEncounter, {
+    stage: "rally", startedAt: 0, rallyEpoch: 0,
+    ballX: TENNIS_LAYOUT.ball.looseX, ballY: TENNIS_LAYOUT.ball.looseY,
+    ballSpin: 0, speechUntil: 0, completed: false
+  });
   currentScene = "bench";
   Object.assign(player, { x: 145, y: SCENES.bench.groundY, direction: "right", moving: false, sprinting: false, walkFrame: 0, pose: "idle" });
   Object.assign(keys, { left: false, right: false, sprint: false });
   Object.assign(camera, { x: 0, target: 0 });
   currentFlower = null; endingFlower = null; activeQuest = null; questAction = null;
   nearbyFlower = null; nearbyMemory = null; nearbyQuestStep = null; nearbyReunion = false;
-  nearbyTraveller = false; nearbyTravelTag = false; dialogue = null;
+  nearbyTraveller = false; nearbyTravelTag = false; nearbyTennisBall = false; dialogue = null;
   ui.dialogue.hidden = true; ui.prompt.hidden = true; ui.tutorial.hidden = true;
 }
 
@@ -723,7 +760,15 @@ function jumpToCheckpoint(checkpointId) {
   currentScene = "market";
 
   const questIndex = questDefinitions.findIndex((quest) => quest.id === checkpointId);
-  if (questIndex >= 0) {
+  if (checkpointId === "tennis") {
+    applyCheckpointProgress(0);
+    journey.market = false;
+    journey.entrance = false;
+    currentScene = "tennisCourt";
+    spawnX = 555;
+    checkpointLabel = "TENNIS COURT";
+    tennisEncounter.rallyEpoch = performance.now();
+  } else if (questIndex >= 0) {
     const quest = questDefinitions[questIndex];
     applyCheckpointProgress(questIndex);
     activeQuest = {
@@ -798,8 +843,21 @@ function resumePlay() {
 
 function checkJourneyTransitions() {
   if (currentScene === "bench" && !journey.returning && player.x >= SCENES.bench.maxX - 2 && keys.right) {
-    switchScene("aquarium", 125, () => {
+    switchScene("tennisCourt", 125, () => {
       journey.leftBench = true;
+      tennisEncounter.rallyEpoch ||= performance.now();
+      ui.status.textContent = "Floodlights warm the courts after the rain";
+      showLocation("THE EVENING ROUTE", "The Neighbourhood Courts", "A late rally carries over the fence");
+      updateHUD(); resumePlay();
+    }, "right");
+    return;
+  }
+  if (currentScene === "tennisCourt" && player.x <= SCENES.tennisCourt.minX + 2 && keys.left) {
+    switchScene("bench", SCENES.bench.maxX - 25, () => { updateHUD(); resumePlay(); }, "left");
+    return;
+  }
+  if (currentScene === "tennisCourt" && player.x >= SCENES.tennisCourt.maxX - 2 && keys.right) {
+    switchScene("aquarium", 125, () => {
       ui.status.textContent = "The aquarium lights colour the road";
       showLocation("THE EVENING ROUTE", "Aquarium & School", "The shark is easier to find from the pavement");
       updateHUD(); resumePlay();
@@ -807,7 +865,7 @@ function checkJourneyTransitions() {
     return;
   }
   if (currentScene === "aquarium" && player.x <= SCENES.aquarium.minX + 2 && keys.left) {
-    switchScene("bench", SCENES.bench.maxX - 25, () => { updateHUD(); resumePlay(); }, "left");
+    switchScene("tennisCourt", SCENES.tennisCourt.maxX - 25, () => { updateHUD(); resumePlay(); }, "left");
     return;
   }
   if (currentScene === "aquarium" && player.x >= SCENES.aquarium.maxX - 2 && keys.right) {
@@ -948,6 +1006,7 @@ function interact() {
   if (nearbyReunion) { meetAtBench(); return; }
   if (nearbyTravelTag) { collectTravelTag(); return; }
   if (nearbyTraveller) { interactTraveller(); return; }
+  if (nearbyTennisBall) { interactTennisBall(); return; }
   if (nearbyMemory) {
     const spot = nearbyMemory;
     tone(610, 0.08, 0.025);
@@ -960,6 +1019,95 @@ function interact() {
   tone(784, 0.12, 0.04); setTimeout(() => tone(988, 0.16, 0.025), 90);
   if (remaining === 1) finalEncounter(currentFlower);
   else startObstacle(currentFlower);
+}
+
+function interactTennisBall() {
+  if (currentScene !== "tennisCourt") return;
+  if (tennisEncounter.stage !== "loose") return;
+  tennisEncounter.stage = "returning";
+  tennisEncounter.startedAt = performance.now();
+  nearbyTennisBall = false;
+  Object.assign(keys, { left: false, right: false, sprint: false });
+  player.direction = "right";
+  player.pose = "interact";
+  player.moving = false;
+  state = "tennisAction";
+  ui.prompt.hidden = true;
+  ui.touch.classList.remove("is-active");
+  ui.status.textContent = `${player.name} lines up the gentlest nudge`;
+  tone(430, 0.09, 0.026);
+}
+
+function updateTennisEncounter(time) {
+  if (!tennisEncounter.rallyEpoch) tennisEncounter.rallyEpoch = time;
+  if (
+    tennisEncounter.stage === "rally" && currentScene === "tennisCourt" &&
+    state === "playing" && !journey.returning && !activeQuest && player.x >= TENNIS_LAYOUT.triggerX
+  ) {
+    tennisEncounter.stage = "escaping";
+    tennisEncounter.startedAt = time;
+    ui.status.textContent = "One return carries a little too far";
+    tone(660, 0.055, 0.014);
+    updateHUD();
+  }
+
+  if (tennisEncounter.stage === "escaping") {
+    const progress = clamp((time - tennisEncounter.startedAt) / TENNIS_LAYOUT.escapeDuration, 0, 1);
+    const start = {
+      x: TENNIS_LAYOUT.court.playerBX - 31,
+      y: TENNIS_LAYOUT.court.playerBY - 70
+    };
+    const control = { x: 690, y: 82 };
+    const end = { x: TENNIS_LAYOUT.ball.looseX, y: TENNIS_LAYOUT.ball.looseY };
+    tennisEncounter.ballX = quadraticBezier(start.x, control.x, end.x, progress);
+    tennisEncounter.ballY = quadraticBezier(start.y, control.y, end.y, progress);
+    tennisEncounter.ballSpin = progress * Math.PI * 7;
+    if (progress >= 1) {
+      tennisEncounter.stage = "loose";
+      tennisEncounter.ballX = TENNIS_LAYOUT.ball.looseX;
+      tennisEncounter.ballY = TENNIS_LAYOUT.ball.looseY;
+      ui.status.textContent = "A tennis ball has rolled onto the pavement";
+      tone(248, 0.045, 0.015);
+      setTimeout(() => tone(205, 0.055, 0.012), 75);
+      updateHUD();
+    }
+    return;
+  }
+
+  if (tennisEncounter.stage === "returning") {
+    const progress = clamp((time - tennisEncounter.startedAt) / TENNIS_LAYOUT.returnDuration, 0, 1);
+    if (progress < 0.72) {
+      const local = smoothstep(progress / 0.72);
+      tennisEncounter.ballX = TENNIS_LAYOUT.ball.looseX + (TENNIS_LAYOUT.ball.landingX - TENNIS_LAYOUT.ball.looseX) * local;
+      tennisEncounter.ballY = quadraticBezier(TENNIS_LAYOUT.ball.looseY, 330, TENNIS_LAYOUT.ball.landingY, local);
+    } else {
+      const local = smoothstep((progress - 0.72) / 0.28);
+      tennisEncounter.ballX = TENNIS_LAYOUT.ball.landingX + (TENNIS_LAYOUT.ball.receiveX - TENNIS_LAYOUT.ball.landingX) * local;
+      tennisEncounter.ballY = quadraticBezier(TENNIS_LAYOUT.ball.landingY, 315, TENNIS_LAYOUT.ball.receiveY, local);
+    }
+    tennisEncounter.ballSpin = progress * Math.PI * 8;
+    player.walkFrame = progress * 2;
+    if (progress >= 1) {
+      tennisEncounter.stage = "celebrating";
+      tennisEncounter.startedAt = time;
+      tennisEncounter.speechUntil = time + TENNIS_LAYOUT.celebrationDuration;
+      tennisEncounter.completed = true;
+      state = "playing";
+      player.pose = "idle";
+      ui.touch.classList.add("is-active");
+      ui.status.textContent = "The rally is still in";
+      tone(659, 0.09, 0.024);
+      setTimeout(() => tone(880, 0.12, 0.018), 90);
+      updateHUD();
+    }
+    return;
+  }
+
+  if (tennisEncounter.stage === "celebrating" && time - tennisEncounter.startedAt >= TENNIS_LAYOUT.celebrationDuration) {
+    tennisEncounter.stage = "complete";
+    tennisEncounter.rallyEpoch = time;
+    updateHUD();
+  }
 }
 
 function interactTraveller() {
@@ -1356,11 +1504,18 @@ function updateHUD() {
     ui.count.textContent = "A small detour";
     appendPips(2, travellerEncounter.stage === "searching" ? 2 : 1); return;
   }
+  if (currentScene === "tennisCourt" && ["escaping", "loose", "returning", "celebrating"].includes(tennisEncounter.stage)) {
+    if (tennisEncounter.stage === "escaping") ui.quest.textContent = "Watch where the stray tennis ball lands";
+    else if (["loose", "returning"].includes(tennisEncounter.stage)) ui.quest.textContent = "Nudge the tennis ball back onto the court";
+    else ui.quest.textContent = "The late rally can continue";
+    ui.count.textContent = "A small detour";
+    appendPips(1, tennisEncounter.stage === "celebrating" ? 0 : 1); return;
+  }
   if (!journey.market || currentScene !== "market") {
     const found = memorySpots.filter((spot) => spot.seen).length;
     ui.quest.textContent = currentScene === "entrance" ? "Stand in the doorway and press Up" : "Follow the evening road to the market";
     ui.count.textContent = found ? `${found} small ${found === 1 ? "moment" : "moments"} noticed` : "The market is ahead";
-    const route = ["bench", "aquarium", "dateNight", "catStories", "cinemaStreet", "entrance"];
+    const route = ["bench", "tennisCourt", "aquarium", "dateNight", "catStories", "cinemaStreet", "entrance"];
     const routeProgress = Math.max(0, route.indexOf(currentScene));
     appendPips(route.length, route.length - routeProgress); return;
   }
@@ -1378,6 +1533,7 @@ function appendPips(total, active) {
 
 function update(delta, time) {
   updateDialogueTyping(time);
+  updateTennisEncounter(time);
   if (state === "playing") {
     const config = SCENES[currentScene];
     const dx = Number(keys.right) - Number(keys.left);
@@ -1395,7 +1551,7 @@ function update(delta, time) {
     if (state !== "playing") return;
 
     nearbyFlower = null; nearbyMemory = null; nearbyQuestStep = null; nearbyReunion = false;
-    nearbyTraveller = false; nearbyTravelTag = false;
+    nearbyTraveller = false; nearbyTravelTag = false; nearbyTennisBall = false;
     if (currentScene === "market" && !activeQuest) {
       let nearest = 85;
       flowers.forEach((flower) => {
@@ -1420,6 +1576,9 @@ function update(delta, time) {
         nearbyTravelTag = true;
       }
     }
+    if (!journey.returning && !activeQuest && currentScene === "tennisCourt" && tennisEncounter.stage === "loose") {
+      nearbyTennisBall = Math.abs(player.x - tennisEncounter.ballX) < TENNIS_LAYOUT.interactionRadius;
+    }
     if (activeQuest && activeQuest.stage === "solve" && currentScene === activeQuest.interior) {
       const step = activeQuest.steps[activeQuest.step];
       if (step && Math.abs(player.x - step.x) < 70) nearbyQuestStep = step;
@@ -1427,7 +1586,7 @@ function update(delta, time) {
     if (journey.returning && currentScene === "bench" && Math.abs(player.x - 820) < 88) nearbyReunion = true;
 
     const door = getActiveDoor();
-    ui.prompt.hidden = !door && !nearbyQuestStep && !nearbyReunion && !nearbyTravelTag && !nearbyTraveller && !nearbyMemory && !nearbyFlower;
+    ui.prompt.hidden = !door && !nearbyQuestStep && !nearbyReunion && !nearbyTravelTag && !nearbyTraveller && !nearbyTennisBall && !nearbyMemory && !nearbyFlower;
     if (door) {
       ui.promptKey.textContent = "↑";
       if (door.kind === "marketExit") ui.promptKicker.textContent = "Return to the evening street";
@@ -1451,6 +1610,10 @@ function update(delta, time) {
       ui.promptKey.textContent = "E";
       ui.promptKicker.textContent = "A traveller between departures";
       ui.promptLabel.textContent = travellerEncounter.stage === "returning" ? "Return the luggage tag" : "Speak with the traveller";
+    } else if (nearbyTennisBall) {
+      ui.promptKey.textContent = "E";
+      ui.promptKicker.textContent = "A stray ball on the pavement";
+      ui.promptLabel.textContent = "Nudge it back onto the court";
     } else if (nearbyMemory) {
       ui.promptKey.textContent = "E";
       ui.promptKicker.textContent = "Something familiar";
@@ -1534,17 +1697,138 @@ function updateVisitorSequence(time) {
 function draw(time) {
   ctx.clearRect(0, 0, 960, 540);
   ctx.save(); ctx.translate(-Math.floor(camera.x), 0);
-  drawSceneBackground(); drawQuestSetPieces(time); drawSoldOutDisplays(time); drawDoorHints(time); drawMemoryProps(time); drawTravellerHints(time); drawQuestHint(time); drawFlowerMarkers(time); drawNPCs(time);
+  drawSceneBackground(); drawTennisVignette(time); drawQuestSetPieces(time); drawSoldOutDisplays(time); drawDoorHints(time); drawMemoryProps(time); drawTravellerHints(time); drawQuestHint(time); drawFlowerMarkers(time); drawNPCs(time);
   if (!['title', 'select', 'loading'].includes(state)) {
     const actionArc = questAction ? Math.sin(questAction.progress * Math.PI) : 0;
-    const actionShift = questAction && !["sit", "idle"].includes(player.pose) ? actionArc * 7 : 0;
-    const actionLift = questAction && player.pose !== "sit" ? actionArc * 3 : 0;
+    const tennisProgress = state === "tennisAction" ? clamp((time - tennisEncounter.startedAt) / TENNIS_LAYOUT.returnDuration, 0, 1) : 0;
+    const tennisArc = Math.sin(tennisProgress * Math.PI);
+    const actionShift = (questAction && !["sit", "idle"].includes(player.pose) ? actionArc * 7 : 0) + tennisArc * 5;
+    const actionLift = (questAction && player.pose !== "sit" ? actionArc * 3 : 0) + tennisArc * 1.5;
     const playerScale = SCENES[currentScene].playerScale || 1;
     drawDogSprite(ctx, player.x + actionShift, player.y - actionLift, player.type, player.pose, player.direction, player.walkFrame, playerScale);
     if (journey.returning && currentScene === "bench" && endingFlower) drawCarriedFlower(player.x, player.y, player.direction, endingFlower, time);
   }
   drawWorldParticles(); ctx.restore();
   drawLighting(time);
+}
+
+function drawTennisVignette(time) {
+  if (currentScene !== "tennisCourt" || journey.returning || activeQuest || !assets.tennisPlayers) return;
+  const layout = TENNIS_LAYOUT.court;
+  let playerAFrame = 0;
+  let playerBFrame = 0;
+  let rallyBall = null;
+
+  if (["rally", "complete"].includes(tennisEncounter.stage)) {
+    const phase = ((time - tennisEncounter.rallyEpoch) % 2800 + 2800) % 2800 / 2800;
+    const firstHalf = phase < 0.5;
+    const local = firstHalf ? phase / 0.5 : (phase - 0.5) / 0.5;
+    if (firstHalf) {
+      playerAFrame = local < 0.1 ? 2 : local < 0.3 ? 3 : 0;
+      playerBFrame = local > 0.7 ? 1 : 0;
+      rallyBall = local < 0.1 ? null : tennisRallyBall(layout.playerAX + 31, layout.playerAY - 69, layout.playerBX - 31, layout.playerBY - 70, local);
+    } else {
+      playerBFrame = local < 0.1 ? 2 : local < 0.3 ? 3 : 0;
+      playerAFrame = local > 0.7 ? 1 : 0;
+      rallyBall = local < 0.1 ? null : tennisRallyBall(layout.playerBX - 31, layout.playerBY - 70, layout.playerAX + 31, layout.playerAY - 69, local);
+    }
+  } else if (tennisEncounter.stage === "escaping") {
+    const progress = clamp((time - tennisEncounter.startedAt) / TENNIS_LAYOUT.escapeDuration, 0, 1);
+    playerBFrame = progress < 0.1 ? 1 : progress < 0.23 ? 2 : progress < 0.48 ? 3 : 4;
+    playerAFrame = progress > 0.58 ? 4 : 0;
+  } else if (tennisEncounter.stage === "celebrating") {
+    playerAFrame = 0;
+    playerBFrame = 5;
+  } else {
+    playerAFrame = 4;
+    playerBFrame = 4;
+  }
+
+  drawTennisPlayer(0, playerAFrame, layout.playerAX, layout.playerAY, layout.playerAHeight);
+  drawTennisPlayer(1, playerBFrame, layout.playerBX, layout.playerBY, layout.playerBHeight);
+  if (rallyBall) drawTennisBall(rallyBall.x, rallyBall.y, 4, time / 80, false);
+
+  const escapingProgress = tennisEncounter.stage === "escaping"
+    ? clamp((time - tennisEncounter.startedAt) / TENNIS_LAYOUT.escapeDuration, 0, 1)
+    : 1;
+  if (["escaping", "loose", "returning"].includes(tennisEncounter.stage) && escapingProgress >= 0.12) {
+    const receding = tennisEncounter.stage === "returning";
+    const returnProgress = receding ? clamp((time - tennisEncounter.startedAt) / TENNIS_LAYOUT.returnDuration, 0, 1) : 0;
+    const radius = receding ? 6 - returnProgress * 2.5 : 6;
+    const onPavement = !receding || returnProgress < 0.6;
+    drawTennisBall(tennisEncounter.ballX, tennisEncounter.ballY, radius, tennisEncounter.ballSpin, onPavement);
+  }
+
+  if (tennisEncounter.stage === "celebrating" && time < tennisEncounter.speechUntil) {
+    drawTennisSpeech(layout.playerBX - 18, layout.playerBY - layout.playerBHeight - 14, "Still in.");
+  }
+
+  if (state === "playing" && tennisEncounter.stage === "loose") {
+    const distance = Math.abs(player.x - tennisEncounter.ballX);
+    if (distance < 185) drawWorldIndicator(tennisEncounter.ballX, tennisEncounter.ballY - 78, "E", time, distance < TENNIS_LAYOUT.interactionRadius);
+  }
+}
+
+function drawTennisPlayer(row, frame, x, footY, height) {
+  const image = assets.tennisPlayers;
+  const cell = 362;
+  const drawWidth = height;
+  ctx.save();
+  ctx.globalAlpha = 0.24;
+  ctx.fillStyle = "#0b1021";
+  ctx.beginPath(); ctx.ellipse(Math.round(x), Math.round(footY + 1), drawWidth * 0.22, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 0.96;
+  ctx.drawImage(image, frame * cell, row * cell, cell, cell, Math.round(x - drawWidth / 2), Math.round(footY - height), drawWidth, height);
+  ctx.restore();
+}
+
+function tennisRallyBall(startX, startY, endX, endY, progress) {
+  return {
+    x: startX + (endX - startX) * progress,
+    y: startY + (endY - startY) * progress - Math.sin(progress * Math.PI) * 72
+  };
+}
+
+function drawTennisBall(x, y, radius, rotation, onPavement) {
+  ctx.save();
+  if (onPavement) {
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = "#0a0c18";
+    ctx.beginPath(); ctx.ellipse(Math.round(x), Math.round(y + radius * 0.78), radius * 1.25, radius * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.translate(Math.round(x), Math.round(y));
+  ctx.rotate(rotation);
+  ctx.fillStyle = "#d9d562";
+  ctx.strokeStyle = "#55552f";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,250,184,.72)";
+  ctx.beginPath();
+  ctx.arc(-radius * 0.48, 0, radius * 0.72, -Math.PI * 0.58, Math.PI * 0.58);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255,247,173,.62)";
+  ctx.fillRect(-radius * 0.35, -radius * 0.55, Math.max(1, radius * 0.45), Math.max(1, radius * 0.3));
+  ctx.restore();
+}
+
+function drawTennisSpeech(x, y, text) {
+  ctx.save();
+  ctx.font = "600 11px DM Mono, monospace";
+  const width = text.length * 7 + 20;
+  ctx.fillStyle = "rgba(18,17,31,.93)";
+  ctx.strokeStyle = "rgba(237,204,132,.88)";
+  ctx.lineWidth = 1.5;
+  ctx.fillRect(Math.round(x - width / 2), Math.round(y - 22), width, 24);
+  ctx.strokeRect(Math.round(x - width / 2) + 0.5, Math.round(y - 22) + 0.5, width - 1, 23);
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y + 1); ctx.lineTo(x + 1, y + 8); ctx.lineTo(x + 5, y + 1);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#f4e9d3";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, Math.round(x), Math.round(y - 10));
+  ctx.restore();
 }
 
 function drawSceneBackground() {
@@ -3165,6 +3449,7 @@ function drawLighting(time) {
   ctx.save(); ctx.globalCompositeOperation = "screen";
   const lightsByScene = {
     bench: [[872,133,48,.11]],
+    tennisCourt: [[198,132,42,.06],[548,130,42,.07],[906,125,48,.08]],
     aquarium: [[400,205,38,.07]],
     dateNight: [[155,195,42,.08],[730,210,40,.07]],
     catStories: [[155,190,40,.08],[670,190,34,.06],[905,190,34,.06]],
@@ -3192,6 +3477,11 @@ function clamp(value,min,max) { return Math.max(min,Math.min(max,value)); }
 function smoothstep(value) {
   const t = clamp(value, 0, 1);
   return t * t * (3 - 2 * t);
+}
+function quadraticBezier(start, control, end, progress) {
+  const t = clamp(progress, 0, 1);
+  const inverse = 1 - t;
+  return inverse * inverse * start + 2 * inverse * t * control + t * t * end;
 }
 function initAudio() { if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === "suspended") audioContext.resume(); }
 function tone(frequency,duration,volume) { if (audioMuted || !audioContext) return; const oscillator=audioContext.createOscillator(); const gain=audioContext.createGain(); oscillator.type="sine"; oscillator.frequency.value=frequency; gain.gain.setValueAtTime(volume,audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(0.0001,audioContext.currentTime+duration); oscillator.connect(gain); gain.connect(audioContext.destination); oscillator.start(); oscillator.stop(audioContext.currentTime+duration); }

@@ -44,7 +44,7 @@ const elements = new Map();
 const dogButtons = [new FakeElement(), new FakeElement()];
 dogButtons[0].dataset.dog = "maltipoo";
 dogButtons[1].dataset.dog = "maltese";
-const checkpointButtons = ["market", "aquarium", "pool", "cats", "bell", "cinema", "leap", "final", "ending"]
+const checkpointButtons = ["market", "tennis", "aquarium", "pool", "cats", "bell", "cinema", "leap", "final", "ending"]
   .map((checkpoint) => {
     const button = new FakeElement();
     button.dataset.checkpoint = checkpoint;
@@ -160,8 +160,8 @@ assert.match(stylesheet, /\.dialogue__body>p\{[^}]*text-shadow:\.35px 0 0/, "dia
 assert.match(stylesheet, /\.dialogue-choices button\{[^}]*font-size:12px[^}]*font-weight:500/, "emotional choices should use the heavier dialogue type scale");
 assert.doesNotMatch(stylesheet, /font-size:(?:6|7)px|clamp\((?:6|7)px/, "functional interface text should not fall back to squint-sized type");
 assert.match(stylesheet, /\.quest-card strong\{[^}]*clamp\(13px,1\.6vw,19px\)/, "the current objective should remain readable over detailed backgrounds");
-assert.equal((markup.match(/data-checkpoint=/g) || []).length, 9, "the title menu should expose all nine scene checkpoints");
-for (const label of ["Flower Market", "Aquarium", "Pool Hall", "Cat Cafe", "Bell's Home", "Cinema", "The Leap", "Final Flower", "Ending Bench"]) {
+assert.equal((markup.match(/data-checkpoint=/g) || []).length, 10, "the title menu should expose all ten scene checkpoints");
+for (const label of ["Flower Market", "Tennis Court", "Aquarium", "Pool Hall", "Cat Cafe", "Bell's Home", "Cinema", "The Leap", "Final Flower", "Ending Bench"]) {
   assert.match(markup, new RegExp(`>${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}<`), `the checkpoint menu should include ${label}`);
 }
 
@@ -184,6 +184,12 @@ assert.deepEqual(
   { scene: "cinemaInside", quest: "cinema", stage: "solve", step: 0, resolved: 4, dog: "maltipoo" },
   "a mission checkpoint should restore its interior, NPC quest and preceding sell-outs"
 );
+vm.runInContext(`jumpToCheckpoint("tennis");`, sandbox);
+assert.deepEqual(
+  JSON.parse(vm.runInContext(`JSON.stringify({ scene: currentScene, stage: tennisEncounter.stage, resolved: scene.resolved, dog: player.type })`, sandbox)),
+  { scene: "tennisCourt", stage: "rally", resolved: 0, dog: "maltipoo" },
+  "the tennis checkpoint should open the optional pre-market vignette without consuming an obstacle"
+);
 vm.runInContext(`jumpToCheckpoint("final");`, sandbox);
 assert.equal(vm.runInContext(`flowers.filter((flower) => flower.active).length`, sandbox), 1, "the final-flower checkpoint should leave exactly one bloom");
 assert.equal(vm.runInContext(`scene.resolved`, sandbox), 6, "the final-flower checkpoint should mark all six obstacles resolved");
@@ -194,6 +200,22 @@ assert.deepEqual(
   "the ending checkpoint should place Momo at the bench carrying the final flower"
 );
 vm.runInContext(`resetGame(); audioContext = null; audioMuted = false;`, sandbox);
+
+vm.runInContext(`
+  state = "playing"; currentScene = "bench"; player.x = SCENES.bench.maxX; keys.right = true;
+  checkJourneyTransitions();
+`, sandbox);
+assert.equal(vm.runInContext("currentScene", sandbox), "tennisCourt", "the familiar bench should lead into the new tennis-court street");
+vm.runInContext(`
+  state = "playing"; player.x = SCENES.tennisCourt.maxX; keys.right = true;
+  checkJourneyTransitions();
+`, sandbox);
+assert.equal(vm.runInContext("currentScene", sandbox), "aquarium", "the tennis court should connect forward to the aquarium street");
+vm.runInContext(`
+  state = "playing"; player.x = SCENES.aquarium.minX; keys.right = false; keys.left = true;
+  checkJourneyTransitions(); keys.left = false;
+`, sandbox);
+assert.equal(vm.runInContext("currentScene", sandbox), "tennisCourt", "the aquarium should connect back through the tennis-court street");
 
 vm.runInContext(`
   state = "playing"; currentScene = "catStories"; player.x = SCENES.catStories.maxX; keys.right = true;
@@ -406,6 +428,8 @@ vm.runInContext(`keys.right = false; keys.sprint = false; update(0.1, 300);`, sa
 assert.equal(vm.runInContext("player.pose", sandbox), "idle", "releasing movement should stop the sprint pose");
 
 assert.equal(assetSummary.bench, "assets/bench-benchmark-v1.png", "the familiar bench should use the restrained benchmark environment");
+assert.equal(assetSummary.tennisCourt, "assets/exterior-tennis-court-benchmark-v6.png", "the tennis vignette should use an accurately divided authored court with uninterrupted foreground paving");
+assert.equal(assetSummary.tennisPlayers, "assets/character-tennis-players-v1.png", "the court players should use a dedicated multi-pose rally atlas");
 assert.equal(assetSummary.dogMaltipoo, "assets/dog-maltipoo-authored-v2.png", "the brown Maltipoo should use the low-resolution authored animation atlas");
 assert.equal(assetSummary.dogMaltese, "assets/dog-maltese-authored-v2.png", "the white Maltese should use the low-resolution authored animation atlas");
 assert.equal(assetSummary.visitors, "assets/character-visitors-authored-v2.png", "market visitors should share the restrained low-resolution character bible");
@@ -424,6 +448,7 @@ assert.equal(assetSummary.questEffects, "assets/quest-effects-atlas-v2.png", "qu
 assert.equal(assetSummary.bellHome, "assets/interior-bell-home-benchmark-v5.png", "Bell's room should use the human-scale Norwegian-flag interior");
 assert.equal("portraits" in assetSummary, false, "portraits should be cropped from the same world-character artwork instead of a mismatched atlas");
 const benchmarkBackgrounds = {
+  tennisCourt: "assets/exterior-tennis-court-benchmark-v6.png",
   aquarium: "assets/exterior-aquarium-benchmark-v1.png",
   dateNight: "assets/exterior-date-night-benchmark-v1.png",
   catStories: "assets/exterior-cat-stories-benchmark-v1.png",
@@ -567,6 +592,51 @@ assert.doesNotThrow(() => vm.runInContext(`
   drawTravellerEncounter(2000);
   drawPortrait("traveller");
 `, sandbox), "the traveller's story poses, walk cycle, and portrait should render from the atlas");
+
+vm.runInContext(`
+  resetGame();
+  currentScene = "tennisCourt";
+  state = "playing";
+  player.x = TENNIS_LAYOUT.triggerX;
+  player.y = SCENES.tennisCourt.groundY;
+  tennisEncounter.rallyEpoch = 1;
+  update(0.01, 1000);
+`, sandbox);
+assert.equal(vm.runInContext("tennisEncounter.stage", sandbox), "escaping", "passing the court should send one rally ball visibly over the fence");
+vm.runInContext(`updateTennisEncounter(1000 + TENNIS_LAYOUT.escapeDuration + 1);`, sandbox);
+assert.equal(vm.runInContext("tennisEncounter.stage", sandbox), "loose", "the escaped ball should finish on the playable pavement");
+vm.runInContext(`
+  state = "playing";
+  player.x = tennisEncounter.ballX;
+  update(0.01, 3100);
+`, sandbox);
+assert.equal(vm.runInContext("nearbyTennisBall", sandbox), true, "the loose tennis ball should expose a clear interaction");
+vm.runInContext(`interact();`, sandbox);
+assert.equal(vm.runInContext("state", sandbox), "tennisAction", "the first tennis interaction should animate before changing position");
+assert.equal(vm.runInContext("tennisEncounter.stage", sandbox), "returning", "one deliberate nudge should send the ball back onto the court");
+vm.runInContext(`updateTennisEncounter(TENNIS_LAYOUT.returnDuration + 1);`, sandbox);
+assert.equal(vm.runInContext("tennisEncounter.stage", sandbox), "celebrating", "the court player should acknowledge the completed return");
+assert.equal(vm.runInContext("tennisEncounter.completed", sandbox), true, "the optional tennis vignette should remember completion");
+assert.equal(vm.runInContext("scene.resolved", sandbox), 0, "the tennis vignette must not consume a flower obstacle");
+const tennisGeometry = JSON.parse(vm.runInContext("JSON.stringify(TENNIS_LAYOUT)", sandbox));
+assert.ok(tennisGeometry.court.playerAX < tennisGeometry.court.netX, "the first player should be grounded on the left half of the court");
+assert.ok(tennisGeometry.court.playerBX > tennisGeometry.court.netX, "the second player should be grounded on the right half of the court");
+assert.equal(tennisGeometry.court.playerAY, tennisGeometry.court.playerBY, "both court players should share one coherent ground plane");
+assert.equal(tennisGeometry.court.playerAHeight, tennisGeometry.court.playerBHeight, "both court players should use the same human scale");
+assert.ok(tennisGeometry.court.netX - tennisGeometry.court.playerAX > tennisGeometry.court.playerAHeight * 2, "the left player should have a believable baseline-to-net separation");
+assert.ok(tennisGeometry.court.playerBX - tennisGeometry.court.netX > tennisGeometry.court.playerBHeight * 2, "the right player should have a believable baseline-to-net separation");
+assert.ok(tennisGeometry.ball.landingY < tennisGeometry.ball.looseY, "the ball should visibly travel from the foreground pavement over the low court edge");
+assert.doesNotThrow(() => vm.runInContext(`
+  assets.tennisCourt = { width: 1672, height: 941 };
+  assets.tennisPlayers = { width: 2172, height: 724 };
+  for (const stage of ["rally", "escaping", "loose", "returning", "celebrating", "complete"]) {
+    tennisEncounter.stage = stage;
+    tennisEncounter.startedAt = 0;
+    tennisEncounter.speechUntil = 9999;
+    drawTennisVignette(900);
+  }
+`, sandbox), "the court, rally, escaped ball, return and wave should render as one layered vignette");
+vm.runInContext(`resetGame();`, sandbox);
 
 assert.doesNotThrow(() => vm.runInContext(`
   assets.visitors = { width: 1536, height: 1024 };
