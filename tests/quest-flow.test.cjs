@@ -272,7 +272,7 @@ for (const quest of questSummary) {
 }
 vm.runInContext("activeQuest = null", sandbox);
 assert.equal(vm.runInContext("SCENES.entrance.groundY", sandbox), 452, "the market entrance baseline should place paws on the pavement edge, not the curb face");
-assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 535, "the rebuilt pool table should preserve a complete dog-width buffer at its visible near corner");
+assert.equal(vm.runInContext("SCENES.poolInside.maxX", sandbox), 440, "the dog should stop at the visible pool player rather than entering the table staging area");
 assert.ok(
   vm.runInContext(`questDefinitions.find((quest) => quest.id === "pool").steps.at(-1).x <= SCENES.poolInside.maxX`, sandbox),
   "the last pool interaction should remain reachable from the table's near corner"
@@ -301,8 +301,8 @@ assert.ok(
   "even the widest sprint frame should remain visibly clear of the pool table"
 );
 assert.ok(
-  poolLayoutSummary.helperX > poolLayoutSummary.tableLeft,
-  "the pool player should begin behind the regulation-height table rather than floating in the dog's lane"
+  poolLayoutSummary.helperX < poolLayoutSummary.tableLeft,
+  "the pool player should remain fully beside the table instead of straddling two depth layers"
 );
 assert.ok(poolLayoutSummary.helperHeight >= 190, "the pool player should be clearly human-sized beside the playable dog");
 const poolHelperLeft = poolLayoutSummary.helperX - poolLayoutSummary.helperHeight * 0.2;
@@ -313,8 +313,12 @@ assert.ok(
 assert.ok(
   poolLayoutSummary.helperPickupX < poolLayoutSummary.tableLeft &&
     poolLayoutSummary.helperPickupX < poolLayoutSummary.helperX &&
-    poolLayoutSummary.helperTableX > poolLayoutSummary.tableLeft,
-  "the pool player should walk around the table's visible corner to collect the ball and return behind its apron"
+    poolLayoutSummary.helperTableX < poolLayoutSummary.tableLeft,
+  "the pool player should collect the ball and return it from the clear left side of the table"
+);
+assert.ok(
+  poolLayoutSummary.helperTableX + poolLayoutSummary.helperHeight * 0.3 < poolLayoutSummary.tableLeft,
+  "the widest pool-player walk pose should clear the table corner without leg clipping"
 );
 assert.ok(poolLayoutSummary.returnActionDuration >= 8000, "the approach, pickup, carrying walk and table return should have enough screen time to read as separate actions");
 assert.ok(
@@ -425,7 +429,7 @@ vm.runInContext(`
   keys.sprint = true;
   update(0.2, 250);
 `, sandbox);
-assert.equal(vm.runInContext("player.x", sandbox), 535, "the dog's complete sprint silhouette should stop at the visible pool-table boundary");
+assert.equal(vm.runInContext("player.x", sandbox), 440, "the dog's complete sprint silhouette should stop before overlapping the pool player");
 assert.doesNotThrow(() => vm.runInContext(`
   assets.dogMaltipoo = { width: 1536, height: 1024 };
   assets.dogMaltese = { width: 1536, height: 1024 };
@@ -471,9 +475,39 @@ assert.equal(assetSummary.projectionist, "assets/character-projectionist-v1.png"
 assert.equal(assetSummary.cafeCats, "assets/character-cafe-cats-v1.png", "the cat cafe should use three authored quest cats");
 assert.equal(assetSummary.poolEightBall, "assets/pool-eight-ball-v1.png", "the pool quest should use an authored 8-ball sprite matched to the rebuilt table");
 assert.equal(assetSummary.poolPlayerSequence, "assets/character-pool-player-sequence-v2.png", "the pool player should use one normalized gesture, walk and recovery atlas");
+assert.equal(assetSummary.poolPlayerCarry, "assets/character-pool-player-carry-walk-v1.png", "the pool player should carry the 8-ball inside a dedicated hand-locked walk cycle");
 assert.equal("poolPlayerActions" in assetSummary, false, "the mismatched legacy action atlas should no longer be loaded");
 assert.equal("poolPlayerWalk" in assetSummary, false, "the mismatched legacy walk atlas should no longer be loaded");
 assert.equal(assetSummary.poolDogActions, "assets/dog-pool-search-actions-v1.png", "both dogs should use a dedicated search-and-paw atlas");
+assert.match(gameSource, /standingSourceHeights = \[190\.5, 193\.5\]/, "both breeds should share measured standing references for the pool interaction");
+assert.match(gameSource, /interactionTargetHeight = DOG_RENDER_HEIGHTS\.static \* DOG_ART_SCALE \* sceneScale/, "custom pool poses should inherit the normal authored dog scale");
+assert.match(gameSource, /stepIndex === 2 && progress < POOL_BALL_STANDARD_INTERACT_BEAT\) return false/, "the exposed-ball interaction should begin on the regular authored interaction sprite");
+assert.match(gameSource, /frameBaselines = \[/, "every pool dog action frame should use its own authored paw baseline");
+const poolDogRendererPhases = vm.runInContext(`(() => {
+  const previousScene = currentScene;
+  const previousQuest = activeQuest;
+  const previousAction = questAction;
+  const previousAtlas = assets.poolDogActions;
+  currentScene = "poolInside";
+  activeQuest = { id: "pool" };
+  assets.poolDogActions = { width: 1774, height: 887 };
+  questAction = { questId: "pool", stepIndex: 1, progress: 0 };
+  const searchUsesCustomAtlas = drawPoolQuestDog(0, 400, SCENES.poolInside.groundY);
+  questAction = { questId: "pool", stepIndex: 2, progress: 0 };
+  const ballStartUsesCustomAtlas = drawPoolQuestDog(0, 400, SCENES.poolInside.groundY);
+  questAction.progress = POOL_BALL_STANDARD_INTERACT_BEAT + 0.01;
+  const nudgeUsesCustomAtlas = drawPoolQuestDog(0, 400, SCENES.poolInside.groundY);
+  currentScene = previousScene;
+  activeQuest = previousQuest;
+  questAction = previousAction;
+  assets.poolDogActions = previousAtlas;
+  return { searchUsesCustomAtlas, ballStartUsesCustomAtlas, nudgeUsesCustomAtlas };
+})()`, sandbox);
+assert.equal(poolDogRendererPhases.searchUsesCustomAtlas, true, "the under-bench search should retain its authored custom performance");
+assert.equal(poolDogRendererPhases.ballStartUsesCustomAtlas, false, "the exposed-ball click should begin on the regular authored dog");
+assert.equal(poolDogRendererPhases.nudgeUsesCustomAtlas, true, "the custom nudge should begin only after the standard interaction beat");
+assert.match(gameSource, /drawPoolPlayerCarryFrame\(carryFrame/, "the carrying phase should render a hand-locked player-and-ball cycle");
+assert.doesNotMatch(gameSource, /carrierX \+ 28/, "the carried ball must not float as a separately positioned overlay");
 assert.equal(assetSummary.questEffects, "assets/quest-effects-atlas-v2.png", "quest actions should use the cleaned authored pixel-art effects atlas");
 assert.equal(assetSummary.bellHome, "assets/interior-bell-home-benchmark-v5.png", "Bell's room should use the human-scale Norwegian-flag interior");
 assert.equal("portraits" in assetSummary, false, "portraits should be cropped from the same world-character artwork instead of a mismatched atlas");
@@ -684,6 +718,37 @@ assert.doesNotThrow(() => vm.runInContext(`
   drawNPCs(1200);
   for (const kind of ["marshall", "lily", "robin", "barney", "bell", "narrator"]) drawPortrait(kind);
 `, sandbox), "the rooftop cast, Bell, and narrator portraits should render from the unified character system");
+const portraitLayoutSummary = JSON.parse(vm.runInContext(`JSON.stringify({
+  canvasSize: PORTRAIT_CANVAS_SIZE,
+  contentPadding: PORTRAIT_CONTENT_PADDING,
+  dialogueDogs: dogDialoguePortraitProfiles,
+  selectionDogs: dogSelectionPortraitProfiles,
+  visitorPadding: visitorPortraitPadding,
+  supportingPadding: supportingPortraitPadding
+})`, sandbox));
+assert.equal(portraitLayoutSummary.canvasSize, 112, "dialogue portraits should use one canonical square canvas");
+assert.ok(portraitLayoutSummary.contentPadding >= 8, "portrait subjects should retain a visible safe area");
+for (const breed of ["maltipoo", "maltese"]) {
+  const dialogueProfile = portraitLayoutSummary.dialogueDogs[breed];
+  const selectionProfile = portraitLayoutSummary.selectionDogs[breed];
+  assert.ok(dialogueProfile.scale >= 1 && dialogueProfile.scale <= 1.04, `${breed}'s dialogue portrait should fill the frame without becoming oversized`);
+  assert.ok(dialogueProfile.footY <= 104, `${breed}'s dialogue portrait should keep its paws inside the frame`);
+  assert.ok(selectionProfile.scale >= 1.4 && selectionProfile.scale <= 1.45, `${breed}'s selection portrait should have consistent visual weight`);
+  assert.equal(selectionProfile.x, 120, `${breed}'s selection portrait should remain centred`);
+}
+assert.ok(portraitLayoutSummary.supportingPadding.bell > portraitLayoutSummary.contentPadding, "Bell's tighter source crop should receive extra breathing room");
+assert.ok(portraitLayoutSummary.visitorPadding.florist > portraitLayoutSummary.contentPadding, "the florist and bouquet should not touch the portrait border");
+assert.match(gameSource, /const scale = Math\.min\(available \/ sourceWidth, available \/ sourceHeight\)/, "non-dog portraits should preserve their authored aspect ratio");
+assert.doesNotMatch(gameSource, /assets\.projectionist[\s\S]{0,180}128,\s*160,\s*0,\s*0,\s*112,\s*112/, "the projectionist portrait should not be stretched into a square");
+assert.doesNotThrow(() => vm.runInContext(`
+  assets.dogMaltipoo = { width: 1024, height: 1024 };
+  assets.dogMaltese = { width: 1024, height: 1024 };
+  for (const breed of ["maltipoo", "maltese"]) {
+    player.type = breed;
+    drawPortrait("player");
+  }
+  player.type = "maltipoo";
+`, sandbox), "both player-dog dialogue portraits should render through the same normalized profile system");
 const leapPortraitFrames = JSON.parse(vm.runInContext(`JSON.stringify(
   ["ted", "marshall", "lily", "robin", "barney"].map((kind) => {
     const config = kind === "ted" ? visitorPortraitRects[kind] : supportingPortraitRects[kind];

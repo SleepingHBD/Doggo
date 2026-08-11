@@ -28,6 +28,8 @@ const ui = {
 const VIEW_WIDTH = 960;
 const TOTAL_QUESTS = 6;
 const DOG_ART_SCALE = 0.92;
+const DOG_RENDER_HEIGHTS = Object.freeze({ static: 93, walk: 90, run: 85 });
+const POOL_BALL_STANDARD_INTERACT_BEAT = 0.1;
 const ROOFTOP_CHARACTER_SCALE = 0.83;
 const POOL_LAYOUT = {
   table: {
@@ -41,17 +43,19 @@ const POOL_LAYOUT = {
       ]
     }
   },
-  playerMaxX: 535,
-  helper: { x: 675, pickupX: 570, tableX: 720, height: 190 },
+  playerMaxX: 440,
+  // The scene has no vertical movement lane. Keep every human pose fully left
+  // of the table so a walking frame can never straddle front/back depth layers.
+  helper: { x: 560, pickupX: 535, tableX: 560, height: 190 },
   missingBall: {
     hidingX: 446, foundX: 500, returnX: 570, floorY: 457,
     dogOffsetX: 8, dogCoverHalfWidth: 30, rollClearance: 70,
     rollStart: 0.08, rollEnd: 0.76,
     emergenceStart: 0.22, emergenceEnd: 0.78, clearPadding: 4,
-    tableDropX: 748, tableDropY: 384,
+    tableDropX: 630, tableDropY: 384,
     rackX: 850, rackY: 384
   },
-  interactions: { wallTray: 315, hidingPlace: 430, returnBall: 475 }
+  interactions: { wallTray: 315, hidingPlace: 430, returnBall: 440 }
 };
 const AQUARIUM_LAYOUT = {
   helper: { x: 112, height: 154 },
@@ -166,6 +170,7 @@ const assetSources = {
   poolInside: "assets/interior-pool-benchmark-v9.png",
   poolEightBall: "assets/pool-eight-ball-v1.png",
   poolPlayerSequence: "assets/character-pool-player-sequence-v2.png",
+  poolPlayerCarry: "assets/character-pool-player-carry-walk-v1.png",
   poolDogActions: "assets/dog-pool-search-actions-v1.png",
   catInside: "assets/interior-cat-cafe-benchmark-v3.png",
   bellHome: "assets/interior-bell-home-benchmark-v5.png",
@@ -1737,8 +1742,15 @@ function drawPoolQuestDog(time, x, footY) {
   ) return false;
 
   const progress = questAction.progress;
+  const stepIndex = questAction.stepIndex;
+
+  // The exposed-ball interaction must begin on the same authored interaction
+  // pose used everywhere else. Returning false lets the normal dog renderer
+  // draw that exact frame, avoiding a scale or silhouette swap on the click.
+  if (stepIndex === 2 && progress < POOL_BALL_STANDARD_INTERACT_BEAT) return false;
+
   let frame;
-  if (questAction.stepIndex === 1) {
+  if (stepIndex === 1) {
     frame = progress < 0.12 ? 0
       : progress < 0.28 ? 1
       : progress < 0.48 ? 2
@@ -1746,22 +1758,33 @@ function drawPoolQuestDog(time, x, footY) {
       : progress < 0.86 ? 4
       : 5;
   } else {
-    frame = progress < 0.08 ? 3 : progress < 0.2 ? 4 : 5;
+    frame = progress < 0.22 ? 4 : 5;
   }
 
-  const reachShift = questAction.stepIndex === 1
+  const reachShift = stepIndex === 1
     ? Math.sin(clamp((progress - 0.42) / 0.48, 0, 1) * Math.PI) * 4
     : Math.sin(clamp(progress / 0.24, 0, 1) * Math.PI) * 3;
   const atlas = assets.poolDogActions;
   const row = player.type === "maltese" ? 1 : 0;
   const sourceWidth = atlas.width / 6;
   const sourceHeight = atlas.height / 2;
-  const baselineRatios = [0.77, 0.66];
-  const scale = 0.5 * DOG_ART_SCALE;
-  const baseline = sourceHeight * baselineRatios[row];
+  // The source poses occupy different amounts of their cells. Use the normal
+  // authored static height as the single body-scale reference, and ground each
+  // frame from its own paw line. Extended poses may become wider naturally,
+  // but the dog's head, torso and legs never inflate or shrink.
+  const standingSourceHeights = [190.5, 193.5];
+  const frameBaselines = [
+    [343, 343, 349, 348, 352, 348],
+    [297, 297, 303, 301, 305, 302]
+  ];
+  const sceneScale = SCENES[currentScene].playerScale || 1;
+  const interactionTargetHeight = DOG_RENDER_HEIGHTS.static * DOG_ART_SCALE * sceneScale;
+  const scale = interactionTargetHeight / standingSourceHeights[row];
+  const baseline = frameBaselines[row][frame];
   const drawX = x + reachShift;
 
-  drawPixelContactShadow(drawX, footY - 1, frame === 4 ? 42 : 36, 0.29);
+  const shadowWidth = (frame === 4 ? 40 : 36) * DOG_ART_SCALE * sceneScale;
+  drawPixelContactShadow(drawX, footY - 1, shadowWidth, 0.29);
   ctx.save();
   ctx.translate(Math.round(drawX), Math.round(footY));
   ctx.filter = dogSceneFilter();
@@ -2133,10 +2156,6 @@ function drawPoolQuestVisuals(time) {
       } else if (returnActionProgress < 0.53) {
         const rotation = (ball.returnX - rollStartX) / ballRadius;
         drawMissingEightBall(ball.returnX, ball.floorY, time, 1, rotation);
-      } else if (returnActionProgress >= 0.68 && returnActionProgress < 0.91) {
-        const travel = smoothstep((returnActionProgress - 0.68) / 0.23);
-        const carrierX = POOL_LAYOUT.helper.pickupX + (POOL_LAYOUT.helper.tableX - POOL_LAYOUT.helper.pickupX) * travel;
-        drawAuthoredPoolEightBall(carrierX + 28, SCENES.poolInside.groundY - 99, 13, 1, false, travel * Math.PI * 4);
       } else if (returnActionProgress >= 0.95 && returnActionProgress < 0.98) {
         const lower = smoothstep((returnActionProgress - 0.95) / 0.03);
         const x = POOL_LAYOUT.helper.tableX + 34 + (ball.tableDropX - (POOL_LAYOUT.helper.tableX + 34)) * lower;
@@ -2685,7 +2704,7 @@ function drawNPCs(time) {
   if (currentScene === "bench" && journey.returning) {
     drawBenchCompanion(time);
     const otherType = player.type === "maltipoo" ? "maltese" : "maltipoo";
-    drawDogSprite(ctx, 918, 426, otherType, "sit", "left", 0, 0.78);
+    drawDogSprite(ctx, 918, 426, otherType, "sit", "left", 0, 1);
   }
 }
 
@@ -2726,6 +2745,7 @@ function drawPoolQuestPlayer(time) {
   let frame = 0;
   let direction = "left";
   let bob = 0;
+  let carryFrame = -1;
   const poolAction = questAction?.questId === "pool" ? questAction : null;
 
   if (poolAction?.stepIndex === 0) {
@@ -2743,7 +2763,7 @@ function drawPoolQuestPlayer(time) {
       const travel = smoothstep((progress - 0.28) / 0.14);
       x = layout.x + (layout.pickupX - layout.x) * travel;
       row = 1;
-      frame = Math.floor(travel * 10) % 8;
+      frame = Math.floor(travel * 5) % 8;
       direction = "left";
       bob = [0, 1, 2, 1, 0, 1, 2, 1][frame];
     } else if (progress < 0.68) {
@@ -2754,10 +2774,9 @@ function drawPoolQuestPlayer(time) {
     } else if (progress < 0.91) {
       const travel = smoothstep((progress - 0.68) / 0.23);
       x = layout.pickupX + (layout.tableX - layout.pickupX) * travel;
-      row = 1;
-      frame = Math.floor(travel * 13) % 8;
+      carryFrame = Math.min(7, Math.floor(travel * 8));
       direction = "right";
-      bob = [0, 1, 2, 1, 0, 1, 2, 1][frame];
+      bob = [0, 1, 2, 1, 0, 1, 2, 1][carryFrame];
     } else if (progress < 0.95) {
       x = layout.tableX;
       row = 2;
@@ -2776,8 +2795,34 @@ function drawPoolQuestPlayer(time) {
     frame = 2;
   }
 
-  drawPixelContactShadow(x, footY + 1, row === 1 ? 35 : 31, 0.25);
-  drawPoolPlayerSequenceFrame(row, frame, x, footY - bob, direction);
+  drawPixelContactShadow(x, footY + 1, carryFrame >= 0 || row === 1 ? 35 : 31, 0.25);
+  if (carryFrame >= 0) drawPoolPlayerCarryFrame(carryFrame, x, footY - bob);
+  else drawPoolPlayerSequenceFrame(row, frame, x, footY - bob, direction);
+}
+
+function drawPoolPlayerCarryFrame(frame, x, footY) {
+  const image = assets.poolPlayerCarry;
+  if (!image) {
+    // Loading failures should not hide the actor; the normalized walk atlas is
+    // a safe visual fallback, while the loose ball remains suppressed.
+    drawPoolPlayerSequenceFrame(1, frame, x, footY, "right");
+    return;
+  }
+  const columns = 8;
+  const sourceWidth = image.width / columns;
+  const sourceHeight = image.height;
+  const authoredVisibleHeight = 345;
+  const authoredBaseline = 392;
+  const scale = POOL_LAYOUT.helper.height / authoredVisibleHeight;
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(footY));
+  ctx.filter = "saturate(.9) brightness(.93) contrast(1.05)";
+  ctx.drawImage(
+    image,
+    frame * sourceWidth, 0, sourceWidth, sourceHeight,
+    -sourceWidth * scale / 2, -authoredBaseline * scale, sourceWidth * scale, sourceHeight * scale
+  );
+  ctx.restore();
 }
 
 function drawPoolPlayerSequenceFrame(row, frame, x, footY, direction) {
@@ -3410,7 +3455,7 @@ function drawDogSprite(target, x, y, type, pose, direction, walkFrame, scale = 1
   const staticColumns = { idle: 0, attentive: 1, relaxed: 0, sniff: 2, sit: 3, emotional: 4, interact: 5 };
   const frameIndex = running || walking ? Math.floor(walkFrame) % 6 : (staticColumns[pose] ?? 0);
   const rect = frames[group][frameIndex];
-  const drawHeight = (running ? 85 : walking ? 90 : 93) * scale;
+  const drawHeight = (running ? DOG_RENDER_HEIGHTS.run : walking ? DOG_RENDER_HEIGHTS.walk : DOG_RENDER_HEIGHTS.static) * scale;
   const drawWidth = drawHeight * (rect.width / rect.height);
   const runLift = running ? [0, 3, 8, 12, 5, 1][frameIndex] * scale : 0;
   const walkLift = walking ? [0, 1, 0, 2, 0, 1][frameIndex] * scale : 0;
@@ -3470,9 +3515,15 @@ function drawSelectionPreviews() {
   if (!assets.dogMaltipoo || !assets.dogMaltese) return;
   document.querySelectorAll("[data-dog-preview]").forEach((preview) => {
     const previewCtx = preview.getContext("2d"); previewCtx.clearRect(0, 0, preview.width, preview.height); previewCtx.imageSmoothingEnabled = false;
-    drawDogSprite(previewCtx, 120, 148, preview.dataset.dogPreview, "idle", "right", 0, 1.18);
+    const profile = dogSelectionPortraitProfiles[preview.dataset.dogPreview] || dogSelectionPortraitProfiles.maltipoo;
+    drawDogSprite(previewCtx, profile.x, profile.footY, preview.dataset.dogPreview, "idle", "right", 0, profile.scale);
   });
 }
+
+const dogSelectionPortraitProfiles = Object.freeze({
+  maltipoo: { x: 120, footY: 150, scale: 1.4 },
+  maltese: { x: 120, footY: 150, scale: 1.44 }
+});
 
 const visitorPortraitRects = {
   tankkeeper: { x: 300, y: 77, size: 128 },
@@ -3496,6 +3547,27 @@ const supportingPortraitRects = {
 };
 
 const PORTRAIT_EYE_LINE = 0.46;
+const PORTRAIT_CANVAS_SIZE = 112;
+const PORTRAIT_CONTENT_PADDING = 8;
+const dogDialoguePortraitProfiles = Object.freeze({
+  maltipoo: { x: 56, footY: 104, scale: 1 },
+  maltese: { x: 56, footY: 104, scale: 1.03 }
+});
+const visitorPortraitPadding = Object.freeze({
+  tankkeeper: 10,
+  poolplayer: 8,
+  catkeeper: 8,
+  bellkeeper: 8,
+  ted: 8,
+  florist: 10
+});
+const supportingPortraitPadding = Object.freeze({
+  marshall: 10,
+  lily: 8,
+  robin: 8,
+  barney: 8,
+  bell: 13
+});
 
 function portraitSourceRect(portrait) {
   if (!Number.isFinite(portrait.centerX) || !Number.isFinite(portrait.eyeY)) return portrait;
@@ -3506,79 +3578,69 @@ function portraitSourceRect(portrait) {
   };
 }
 
+function fillPortraitBackground(start, end) {
+  const gradient = portraitCtx.createLinearGradient(0, 0, PORTRAIT_CANVAS_SIZE, PORTRAIT_CANVAS_SIZE);
+  gradient.addColorStop(0, start);
+  gradient.addColorStop(1, end);
+  portraitCtx.fillStyle = gradient;
+  portraitCtx.fillRect(0, 0, PORTRAIT_CANVAS_SIZE, PORTRAIT_CANVAS_SIZE);
+}
+
+function drawContainedPortrait(image, source, filter, padding = PORTRAIT_CONTENT_PADDING) {
+  if (!image) return;
+  const sourceWidth = source.width || source.size;
+  const sourceHeight = source.height || source.size;
+  const available = PORTRAIT_CANVAS_SIZE - padding * 2;
+  const scale = Math.min(available / sourceWidth, available / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  const drawX = (PORTRAIT_CANVAS_SIZE - drawWidth) / 2;
+  const drawY = (PORTRAIT_CANVAS_SIZE - drawHeight) / 2;
+  portraitCtx.save();
+  portraitCtx.filter = filter;
+  portraitCtx.drawImage(
+    image,
+    source.x, source.y, sourceWidth, sourceHeight,
+    drawX, drawY, drawWidth, drawHeight
+  );
+  portraitCtx.restore();
+}
+
 function drawPortrait(kind) {
-  portraitCtx.clearRect(0, 0, 112, 112);
+  portraitCtx.clearRect(0, 0, PORTRAIT_CANVAS_SIZE, PORTRAIT_CANVAS_SIZE);
   if (kind === "player") {
-    const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
-    gradient.addColorStop(0, "#705366"); gradient.addColorStop(1, "#352b45");
-    portraitCtx.fillStyle = gradient; portraitCtx.fillRect(0, 0, 112, 112);
-    drawDogSprite(portraitCtx, 56, 105, player.type, "emotional", "right", 0, 0.69);
+    fillPortraitBackground("#705366", "#352b45");
+    const profile = dogDialoguePortraitProfiles[player.type] || dogDialoguePortraitProfiles.maltipoo;
+    drawDogSprite(portraitCtx, profile.x, profile.footY, player.type, "emotional", "right", 0, profile.scale);
     return;
   }
   if (kind === "traveller" && assets.traveller) {
-    const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
-    gradient.addColorStop(0, "#496f78"); gradient.addColorStop(1, "#30283f");
-    portraitCtx.fillStyle = gradient; portraitCtx.fillRect(0, 0, 112, 112);
-    portraitCtx.save();
-    portraitCtx.filter = "saturate(.94) brightness(.98)";
-    portraitCtx.drawImage(assets.traveller, 100, 660, 122, 122, 0, 0, 112, 112);
-    portraitCtx.restore();
+    fillPortraitBackground("#496f78", "#30283f");
+    drawContainedPortrait(assets.traveller, { x: 100, y: 660, width: 122, height: 122 }, "saturate(.94) brightness(.98)", 10);
     return;
   }
   if (kind === "her" && assets.benchCompanion) {
-    const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
-    gradient.addColorStop(0, "#49526a"); gradient.addColorStop(1, "#28283d");
-    portraitCtx.fillStyle = gradient; portraitCtx.fillRect(0, 0, 112, 112);
-    portraitCtx.save();
-    portraitCtx.filter = "saturate(.94) brightness(.98) contrast(1.03)";
-    portraitCtx.drawImage(assets.benchCompanion, 160, 219, 150, 150, 0, 0, 112, 112);
-    portraitCtx.restore();
+    fillPortraitBackground("#49526a", "#28283d");
+    drawContainedPortrait(assets.benchCompanion, { x: 160, y: 219, width: 150, height: 150 }, "saturate(.94) brightness(.98) contrast(1.03)");
     return;
   }
   if (kind === "projectionist" && assets.projectionist) {
-    const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
-    gradient.addColorStop(0, "#684d5b"); gradient.addColorStop(1, "#28283d");
-    portraitCtx.fillStyle = gradient; portraitCtx.fillRect(0, 0, 112, 112);
-    portraitCtx.save();
-    portraitCtx.filter = "saturate(.9) brightness(.96) contrast(1.03)";
-    portraitCtx.drawImage(assets.projectionist, 271, 70, 128, 160, 0, 0, 112, 112);
-    portraitCtx.restore();
+    fillPortraitBackground("#684d5b", "#28283d");
+    drawContainedPortrait(assets.projectionist, { x: 271, y: 70, width: 128, height: 160 }, "saturate(.9) brightness(.96) contrast(1.03)");
     return;
   }
   const visitorPortrait = visitorPortraitRects[kind];
   if (visitorPortrait && assets.visitors) {
     const source = portraitSourceRect(visitorPortrait);
-    const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
-    gradient.addColorStop(0, "#685066");
-    gradient.addColorStop(1, "#30283e");
-    portraitCtx.fillStyle = gradient;
-    portraitCtx.fillRect(0, 0, 112, 112);
-    portraitCtx.save();
-    portraitCtx.filter = "saturate(.94) brightness(.98)";
-    portraitCtx.drawImage(
-      assets.visitors,
-      source.x, source.y, source.size, source.size,
-      0, 0, 112, 112
-    );
-    portraitCtx.restore();
+    fillPortraitBackground("#685066", "#30283e");
+    drawContainedPortrait(assets.visitors, source, "saturate(.94) brightness(.98)", visitorPortraitPadding[kind]);
     return;
   }
   const supportingPortrait = supportingPortraitRects[kind];
   if (supportingPortrait && assets.supportingCast) {
     const source = portraitSourceRect(supportingPortrait);
-    const gradient = portraitCtx.createLinearGradient(0, 0, 112, 112);
-    gradient.addColorStop(0, "#5d536c");
-    gradient.addColorStop(1, "#29283d");
-    portraitCtx.fillStyle = gradient;
-    portraitCtx.fillRect(0, 0, 112, 112);
-    portraitCtx.save();
-    portraitCtx.filter = "saturate(.94) brightness(.98) contrast(1.03)";
-    portraitCtx.drawImage(
-      assets.supportingCast,
-      source.x, source.y, source.size, source.size,
-      0, 0, 112, 112
-    );
-    portraitCtx.restore();
+    fillPortraitBackground("#5d536c", "#29283d");
+    drawContainedPortrait(assets.supportingCast, source, "saturate(.94) brightness(.98) contrast(1.03)", supportingPortraitPadding[kind]);
     return;
   }
   drawNarratorPortrait();
