@@ -23,7 +23,8 @@ const ui = {
   fade: document.querySelector("#fade"), chapter: document.querySelector("#chapter-label"),
   status: document.querySelector("#status-text"), endingTitle: document.querySelector("#ending-title"),
   endingCopy: document.querySelector("#ending-copy"), endingMemory: document.querySelector("#ending-memory"),
-  endingFlower: document.querySelector("#ending-flower-symbol"), soundButton: document.querySelector("#sound-button")
+  endingFlower: document.querySelector("#ending-flower-symbol"), soundButton: document.querySelector("#sound-button"),
+  fullscreenButton: document.querySelector("#fullscreen-button"), fullscreenNote: document.querySelector("#fullscreen-note")
 };
 
 const VIEW_WIDTH = 960;
@@ -32,6 +33,7 @@ const coarsePointerQuery = window.matchMedia?.("(pointer: coarse)");
 const reducedMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 const runtimeNavigator = globalThis.navigator || {};
 const isTouchRuntime = Boolean(coarsePointerQuery?.matches || (runtimeNavigator.maxTouchPoints || 0) > 0);
+const isStandaloneRuntime = Boolean(runtimeNavigator.standalone || window.matchMedia?.("(display-mode: standalone)")?.matches);
 const lowPowerRuntime = Boolean(
   reducedMotionQuery?.matches || runtimeNavigator.connection?.saveData ||
   (runtimeNavigator.deviceMemory && runtimeNavigator.deviceMemory <= 4) ||
@@ -285,6 +287,7 @@ let audioMuted = false;
 let audioContext = null;
 let menuIndex = 0;
 const activeTouchPointers = new Map();
+let fullscreenNoteTimer = null;
 
 const flowerData = {
   peony: { name: "Coral Peony", short: "Peony", color: "#ef8c83", symbol: "✿", anchor: [283, 318], stand: 283 },
@@ -624,19 +627,22 @@ Promise.all(criticalAssetKeys.map((key) => loadAsset(key, "high")))
     ui.loading.style.opacity = "0";
     setTimeout(() => {
       ui.loading.hidden = true; ui.title.hidden = false; state = "title";
-      setMenuSelection(0);
+      updateStartButton(); updateFullscreenButton(); setMenuSelection(0);
       scheduleDeferredAssetLoading();
     }, 550);
   })
   .catch(() => { ui.loading.innerHTML = "<p>The evening could not be opened. Please refresh the page.</p>"; });
 
-document.querySelector("#start-button").addEventListener("click", () => {
+document.querySelector("#start-button").addEventListener("click", startExperience);
+
+async function startExperience() {
   initAudio(); tone(523, 0.08, 0.035);
+  if (isTouchRuntime && !isStandaloneRuntime && !fullscreenElement()) await requestFullscreenExperience();
   transition(() => {
     ui.title.hidden = true; ui.select.hidden = false; state = "select";
-    drawSelectionPreviews(); setMenuSelection(0);
+    drawSelectionPreviews(); updateFullscreenButton(); setMenuSelection(0);
   });
-});
+}
 document.querySelectorAll("[data-dog]").forEach((button, index) => {
   button.addEventListener("click", () => chooseDog(button.dataset.dog));
   button.addEventListener("focus", () => setMenuSelection(index, false));
@@ -651,6 +657,7 @@ document.querySelector("#restart-button").addEventListener("click", resetGame);
 ui.continueButton.addEventListener("click", performAction);
 ui.prompt.addEventListener("click", () => { if (getActiveDoor()) handleUp(); else interact(); });
 ui.soundButton.addEventListener("click", toggleSound);
+ui.fullscreenButton?.addEventListener("click", toggleFullscreen);
 
 window.addEventListener("keydown", (event) => {
   if (handleMenuKeydown(event)) return;
@@ -698,6 +705,8 @@ window.addEventListener("pagehide", releaseAllInputs);
 window.addEventListener("resize", updateMobileViewport, { passive: true });
 window.addEventListener("orientationchange", updateMobileViewport, { passive: true });
 document.addEventListener?.("visibilitychange", handleVisibilityChange);
+document.addEventListener?.("fullscreenchange", handleFullscreenChange);
+document.addEventListener?.("webkitfullscreenchange", handleFullscreenChange);
 coarsePointerQuery?.addEventListener?.("change", updateMobileViewport);
 updateMobileViewport();
 
@@ -793,6 +802,7 @@ function updateMobileViewport() {
   document.documentElement?.style.setProperty("--app-height", `${window.innerHeight || 540}px`);
   document.documentElement?.classList.toggle("is-touch-runtime", isTouchRuntime);
   document.documentElement?.classList.toggle("is-low-power", lowPowerRuntime);
+  document.documentElement?.classList.toggle("is-standalone", isStandaloneRuntime);
   const titleFootnote = document.querySelector(".title-footnote");
   const menuControls = document.querySelector(".menu-controls");
   const tutorialHint = document.querySelector("#tutorial small");
@@ -801,6 +811,92 @@ function updateMobileViewport() {
     if (menuControls) menuControls.textContent = "Tap a companion to continue";
     if (tutorialHint) tutorialHint.textContent = "Use the on-screen controls · hold RUN while moving to sprint";
   }
+  updateFullscreenButton();
+  updateStartButton();
+}
+
+function fullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function fullscreenRequestTarget() {
+  return document.documentElement;
+}
+
+function fullscreenSupported() {
+  const target = fullscreenRequestTarget();
+  return Boolean(target?.requestFullscreen || target?.webkitRequestFullscreen);
+}
+
+async function toggleFullscreen() {
+  initAudio();
+  if (fullscreenElement()) {
+    try {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      await exit?.call(document);
+    } catch (_) {}
+    handleFullscreenChange(); return;
+  }
+  await requestFullscreenExperience();
+}
+
+async function requestFullscreenExperience() {
+  const target = fullscreenRequestTarget();
+  const request = target?.requestFullscreen || target?.webkitRequestFullscreen;
+  if (!request) {
+    showFullscreenNote("For a browser-free view on this device, use Share → Add to Home Screen, then open Petals at Dusk from its new icon.");
+    return false;
+  }
+  try {
+    await request.call(target, { navigationUI: "hide" });
+    try { await screen.orientation?.lock?.("landscape"); } catch (_) {}
+    handleFullscreenChange();
+    return true;
+  } catch (_) {
+    showFullscreenNote("Full screen was blocked by this browser. The game will still continue; use Share → Add to Home Screen for the cleanest view.");
+    handleFullscreenChange();
+    return false;
+  }
+}
+
+function handleFullscreenChange() {
+  const active = Boolean(fullscreenElement());
+  document.documentElement?.classList.toggle("is-fullscreen", active);
+  if (!active) screen.orientation?.unlock?.();
+  updateFullscreenButton();
+  updateStartButton();
+  updateMobileViewport();
+}
+
+function updateFullscreenButton() {
+  if (!ui.fullscreenButton) return;
+  const active = Boolean(fullscreenElement());
+  ui.fullscreenButton.hidden = Boolean(isStandaloneRuntime || (isTouchRuntime && state === "title" && !active));
+  const label = active ? "Exit full screen" : fullscreenSupported() ? "Enter full screen" : "Open full-screen help";
+  ui.fullscreenButton.setAttribute("aria-label", label);
+  ui.fullscreenButton.title = label;
+  const caption = ui.fullscreenButton.querySelector("small");
+  if (caption) caption.textContent = active ? "Exit full screen" : "Full screen";
+}
+
+function updateStartButton() {
+  const button = document.querySelector("#start-button");
+  if (!button) return;
+  const copy = button.querySelector("span");
+  const symbol = button.querySelector("b");
+  const inviteFullscreen = isTouchRuntime && !isStandaloneRuntime && !fullscreenElement();
+  button.classList.toggle("is-immersive-entry", inviteFullscreen);
+  if (copy) copy.textContent = inviteFullscreen ? "Play full screen" : "Begin the walk";
+  if (symbol) symbol.textContent = inviteFullscreen ? "↗" : "→";
+  button.setAttribute("aria-label", inviteFullscreen ? "Play full screen and begin" : "Begin the walk");
+}
+
+function showFullscreenNote(message) {
+  if (!ui.fullscreenNote) return;
+  clearTimeout(fullscreenNoteTimer);
+  ui.fullscreenNote.textContent = message;
+  ui.fullscreenNote.hidden = false;
+  fullscreenNoteTimer = setTimeout(() => { ui.fullscreenNote.hidden = true; }, 6500);
 }
 
 function handleVisibilityChange() {

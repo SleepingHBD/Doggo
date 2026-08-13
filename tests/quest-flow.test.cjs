@@ -163,6 +163,8 @@ assert.match(markup, /Continue\s*<kbd>E<\/kbd>/, "dialogue should advertise the 
 assert.match(markup, /<kbd>E<\/kbd> Interact \/ continue/, "the control legend should expose one shared action key");
 assert.match(markup, /viewport-fit=cover/, "the mobile viewport should extend safely around phone cutouts");
 assert.match(markup, /id="orientation-gate"/, "phone portrait mode should provide a dedicated landscape-orientation message");
+assert.match(markup, /id="fullscreen-button"[^>]*aria-label="Enter full screen"/, "the game frame should provide an accessible immersive-mode control");
+assert.match(markup, /id="fullscreen-note"[^>]*aria-live="polite"/, "fullscreen restrictions should be explained without interrupting gameplay");
 assert.match(stylesheet, /@media \(pointer:coarse\)/, "touch-first layouts should not depend on a narrow desktop breakpoint");
 assert.match(stylesheet, /env\(safe-area-inset-(?:left|right|bottom|top)\)/, "touch controls should respect notches and rounded screen corners");
 assert.match(stylesheet, /var\(--app-height,100dvh\)/, "mobile layout should track the visible browser viewport height");
@@ -171,6 +173,15 @@ assert.match(gameSource, /setPointerCapture\?\.\(event\.pointerId\)/, "multi-tou
 assert.match(gameSource, /document\.addEventListener\?\.\("visibilitychange", handleVisibilityChange\)/, "the game loop should pause cleanly when the page is hidden");
 assert.match(gameSource, /criticalAssetKeys = Object\.freeze\(\["bench", "dogMaltipoo", "dogMaltese"\]\)/, "the title screen should wait only for its critical artwork");
 assert.match(gameSource, /DEFERRED_ASSET_CONCURRENCY = isTouchRuntime \? 2 : 4/, "mobile asset decoding should use a restrained background queue");
+assert.match(gameSource, /target\?\.requestFullscreen \|\| target\?\.webkitRequestFullscreen/, "the fullscreen control should support standard and WebKit APIs");
+assert.match(gameSource, /screen\.orientation\?\.lock\?\.\("landscape"\)/, "fullscreen should request landscape orientation where the browser permits it");
+assert.match(gameSource, /Share → Add to Home Screen/, "unsupported mobile browsers should receive an installable browser-free fallback");
+assert.match(gameSource, /if \(isTouchRuntime && !isStandaloneRuntime && !fullscreenElement\(\)\) await requestFullscreenExperience\(\)/, "the mobile title action should request immersive mode from the same user gesture that begins play");
+assert.match(gameSource, /copy\.textContent = inviteFullscreen \? "Play full screen" : "Begin the walk"/, "the primary title action should clearly advertise immersive mobile play");
+assert.match(gameSource, /isTouchRuntime && state === "title" && !active/, "the redundant corner fullscreen control should stay hidden behind the primary mobile title action");
+assert.match(stylesheet, /\.title-screen \.primary-button\.is-immersive-entry/, "the mobile fullscreen entry should be visually promoted above the testing shortcuts");
+assert.match(stylesheet, /\.is-standalone \.fullscreen-button \{ display:none!important; \}/, "installed Home Screen versions should not display a redundant fullscreen control");
+assert.match(stylesheet, /html:fullscreen \.game-frame,html:-webkit-full-screen \.game-frame/, "the full-screen game should retain its authored 16:9 composition");
 assert.match(stylesheet, /\.dialogue__body>p\{[^}]*font:500 clamp\(13px,1\.5vw,18px\)/, "dialogue copy should remain large and comfortably weighted across screen sizes");
 assert.match(stylesheet, /\.dialogue__body>p\{[^}]*text-shadow:\.35px 0 0/, "dialogue copy should retain a subtle weight boost even when the web font falls back");
 assert.match(stylesheet, /\.dialogue-choices button\{[^}]*font-size:12px[^}]*font-weight:500/, "emotional choices should use the heavier dialogue type scale");

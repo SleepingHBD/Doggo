@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=mobile-1" />
+    <link rel="stylesheet" href="styles.css?v=mobile-3" />
   </head>
   <body>
     <main class="page-shell">
@@ -32,6 +32,12 @@
         <div class="cinematic-bars" aria-hidden="true"></div>
         <div class="vignette" aria-hidden="true"></div>
         <div class="grain" aria-hidden="true"></div>
+
+        <button id="fullscreen-button" class="fullscreen-button" type="button" aria-label="Enter full screen" title="Enter full screen">
+          <span class="fullscreen-button__icon" aria-hidden="true"></span>
+          <small>Full screen</small>
+        </button>
+        <div id="fullscreen-note" class="fullscreen-note" role="status" aria-live="polite" hidden></div>
 
         <div id="loading-screen" class="loading-screen">
           <span class="loading-bloom" aria-hidden="true">✦</span>
@@ -169,6 +175,6 @@
       <strong>Turn your phone sideways</strong>
       <small>The evening road is composed for a wide screen.</small>
     </aside>
-    <script src="game.js?v=mobile-1"></script>
+    <script src="game.js?v=mobile-3"></script>
   </body>
 </html>
